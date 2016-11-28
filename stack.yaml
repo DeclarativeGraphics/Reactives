@@ -1,0 +1,9 @@
+flags: {}
+packages:
+- '.'
+- '../DeclarativeGraphics'
+- '../DeclarativeGraphics-Cairo'
+- '../DeclarativeGraphics-SDL'
+- '../OneFileLens'
+extra-deps: []
+resolver: lts-7.9
