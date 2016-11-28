@@ -13,12 +13,28 @@ import Reactive (Reactive(..))
 import RunReactive (optionalUpdate, runReactive)
 import Utils (orElse)
 
+import qualified Data.Vec2 as Vec2
+import Data.Vec2 (Vec2)
+
 main :: IO ()
 main = runReactive viewPair (5, 10)
 
+infixl 4 <*->
+(<*->) :: Reactive (a -> b) -> Reactive a -> Reactive b
+left <*-> right = left <*> rightMoved
+  where
+    leftBorder = getBorder $ visual left
+    rightBorder = getBorder $ visual right
+    displacement = displacementTo Vec2.right leftBorder rightBorder
+    rightMoved = Reactive.moveR displacement right
+
+infixl 5 *->
+(*->) :: Reactive b -> Reactive a -> Reactive a
+left *-> right = pure (const id) <*> left <*-> right
+
 viewPair :: (Int, Int) -> Reactive (Int, Int)
 viewPair (mLeft, mRight) =
-  ((,) <$> counterL) <*> (comma *> counterR)
+  (,) <$> counterL <*-> comma *-> counterR
   where
     comma = Reactive.moveR (10, 0) $ Reactive.unit (text defaultTextStyle ",")
     counterL = viewCounter mLeft
@@ -29,7 +45,6 @@ viewCounter = optionalUpdate viewCounterMaybe
 
 viewCounterMaybe :: Int -> Reactive (Maybe Int)
 viewCounterMaybe number
-  = Reactive.joinFilters
-  $ Reactive.eventInside
-  $ Reactive.onEvent (Reactive.click MBLeft $ number + 1)
+  = Reactive.andFilterOutside
+  $ Reactive.onEvent (Reactive.click MBLeft (number + 1))
   $ Reactive.constant Nothing (text defaultTextStyle (show number))

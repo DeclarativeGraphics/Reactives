@@ -12,6 +12,7 @@ import qualified Data.Vec2 as Vec2
 import Data.Vec2 (Vec2)
 
 import Data.Lens
+import Utils (orElse)
 import Control.Monad (join)
 
 data Reactive msg
@@ -31,7 +32,7 @@ unit form = Reactive
 constant :: a -> Form -> Reactive a
 constant value form = pure value <* unit form
 
-onEvent :: (Input -> a) -> Reactive a -> Reactive a
+onEvent :: (Input -> a) -> Reactive b -> Reactive a
 onEvent reaction reactive =
   Reactive reaction (visual reactive)
 
@@ -40,8 +41,11 @@ click mouseButton value (MouseInput (MousePress _ button))
   | button == mouseButton = Just value
 click _ _ _ = Nothing
 
-eventInside :: Reactive a -> Reactive (Maybe a)
-eventInside reactive =
+andFilterOutside :: Reactive (Maybe a) -> Reactive (Maybe a)
+andFilterOutside = fmap join . filterOutside
+
+filterOutside :: Reactive a -> Reactive (Maybe a)
+filterOutside reactive =
     reactive { react = fmap (react reactive) . whenInside }
   where
     (topLeft, bottomRight) =
@@ -54,9 +58,6 @@ eventInside reactive =
       | isInside (get mouseInputPos m) = Just $ MouseInput m
       | otherwise = Nothing
     whenInside e = Just e
-
-joinFilters :: Reactive (Maybe (Maybe a)) -> Reactive (Maybe a)
-joinFilters = fmap join
 
 atopReactives :: Reactive a -> Reactive b -> Reactive (a, b)
 atopReactives reactiveA reactiveB =
