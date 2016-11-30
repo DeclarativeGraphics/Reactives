@@ -18,6 +18,7 @@ library
   exposed-modules:     Reactive, RunReactive, Utils
   build-depends:       base
                      , sdl2
+                     , linear
                      , OneFileLens
                      , DeclarativeGraphics
                      , DeclarativeGraphics-Cairo
@@ -29,6 +30,7 @@ executable Reactives-exe
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
+                     , linear
                      , DeclarativeGraphics
                      , DeclarativeGraphics-Cairo
                      , DeclarativeGraphics-SDL
