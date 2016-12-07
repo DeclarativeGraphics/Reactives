@@ -54,20 +54,16 @@ viewList = move (V2 100 100) . listTemplate . map viewCounter
 
 addMouseOver :: (Bool -> a -> Reactive (Maybe a)) -> (a, Bool) -> Reactive (Maybe (a, Bool))
 addMouseOver innerView (model, mouseIsOver)
-  = Reactive.andOnEvent (Reactive.mouseMove handleMouseMove)
-  $ innerReactive
+  = Reactive.postEvent
+      (\maybeNewModel -> Reactive.mouseMove (handleMouseMove maybeNewModel))
+      innerReactive
   where
-    innerReactive
-      = fmap (fmap (flip (,) mouseIsOver))
-      $ innerView mouseIsOver model
-    handleMouseMove pos = (model, Reactive.isInside innerReactive pos)
+    innerReactive = innerView mouseIsOver model
+    handleMouseMove maybeNewModel pos =
+      (maybeNewModel `orElse` model, Reactive.isInside innerReactive pos)
 
 moCounter :: (Int, Bool) -> Reactive (Int, Bool)
-moCounter state =
-  optionalUpdate withMouseOver state
-  where
-    withMouseOver :: (Int, Bool) -> Reactive (Maybe (Int, Bool))
-    withMouseOver = addMouseOver counterMouseOver
+moCounter = optionalUpdate (addMouseOver counterMouseOver)
 
 counterMouseOver :: Bool -> Int -> Reactive (Maybe Int)
 counterMouseOver mouseIsOver model
@@ -82,5 +78,6 @@ viewCounter = optionalUpdate viewCounterMaybe
 viewCounterMaybe :: Int -> Reactive (Maybe Int)
 viewCounterMaybe number
   = Reactive.andFilterOutside
+  $ Reactive.andOnEvent (Reactive.mouseMove (const (number + 1)))
   $ Reactive.onEvent (Reactive.click MBLeft (number + 1))
   $ Reactive.constant Nothing (text dFont (show number))

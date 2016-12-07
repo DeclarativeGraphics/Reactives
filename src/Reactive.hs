@@ -43,6 +43,12 @@ andOnEvent eventHandler reactive =
       (eventHandler event) `orTry`
       (react reactive event)
 
+postEvent :: (b -> Input -> a) -> Reactive b -> Reactive a
+postEvent eventHandler reactive =
+    Reactive reaction (visual reactive)
+  where
+    reaction event = eventHandler (react reactive event) event
+
 click :: MB -> a -> Input -> Maybe a
 click mouseButton value (MouseInput (MousePress _ button))
   | button == mouseButton = Just value
