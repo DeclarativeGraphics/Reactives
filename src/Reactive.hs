@@ -9,7 +9,7 @@ import Graphics.Declarative.Cairo.Shape
 import Graphics.Declarative.SDL.Input
 
 import Data.Lens
-import Utils (orElse)
+import Utils (orElse, orTry)
 import Control.Monad (join)
 
 import Linear
@@ -35,10 +35,22 @@ onEvent :: (Input -> a) -> Reactive b -> Reactive a
 onEvent reaction reactive =
   Reactive reaction (visual reactive)
 
+andOnEvent :: (Input -> Maybe a) -> Reactive (Maybe a) -> Reactive (Maybe a)
+andOnEvent eventHandler reactive =
+    Reactive reaction (visual reactive)
+  where
+    reaction event =
+      (eventHandler event) `orTry`
+      (react reactive event)
+
 click :: MB -> a -> Input -> Maybe a
 click mouseButton value (MouseInput (MousePress _ button))
   | button == mouseButton = Just value
 click _ _ _ = Nothing
+
+mouseMove :: (V2 Double -> a) -> Input -> Maybe a
+mouseMove callback (MouseInput (MouseMove pos)) = Just (callback pos)
+mouseMove _ _ = Nothing
 
 andFilterOutside :: Reactive (Maybe a) -> Reactive (Maybe a)
 andFilterOutside = fmap join . filterOutside
@@ -47,16 +59,22 @@ filterOutside :: Reactive a -> Reactive (Maybe a)
 filterOutside reactive =
     reactive { react = fmap (react reactive) . whenInside }
   where
-    (topLeft, bottomRight) =
-      Border.getBoundingBox $ getBorder $ visual reactive
-    purelyPositive (V2 x y) = x >= 0 && y >= 0
-    isInside pos =
-      purelyPositive (pos - topLeft) &&
-      purelyPositive (bottomRight - pos)
-    whenInside (MouseInput m)
-      | isInside (get mouseInputPos m) = Just $ MouseInput m
+    whenInside event
+      | eventInside reactive event = Just event
       | otherwise = Nothing
-    whenInside e = Just e
+
+isInside :: HasBorder a => a -> V2 Double -> Bool
+isInside sth pos =
+  purelyPositive (pos - topLeft) &&
+  purelyPositive (bottomRight - pos)
+  where
+    (topLeft, bottomRight) =
+      Border.getBoundingBox $ getBorder sth
+    purelyPositive (V2 x y) = x >= 0 && y >= 0
+
+eventInside :: HasBorder a => a -> Input -> Bool
+eventInside sth (MouseInput m) = isInside sth (get mouseInputPos m)
+eventInside sth _ = True
 
 atopReactives :: (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
 atopReactives combine reactiveA reactiveB =
@@ -65,17 +83,27 @@ atopReactives combine reactiveA reactiveB =
     reaction event = combine (react reactiveA event) (react reactiveB event)
 
 -- Place some Form beside a reactive
-attachFormTo :: V2 Double -> Reactive a -> Form -> Reactive a
-attachFormTo dir reference form = reference <* movedIrreactive
+attachFormTo :: V2 Double -> Form -> Reactive a -> Reactive a
+attachFormTo dir attachment reactive = reactive <* movedIrreactive
   where
     movedIrreactive =
-      moveBesideBy (displacementTo dir) reference $
-        Reactive.irreactive form
+      moveBesideBy (displacementTo dir) reactive $
+        Reactive.irreactive attachment
 
 besidesTo :: V2 Double -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
 besidesTo dir combine reference toBeMoved =
   Reactive.atopReactives combine reference moved
   where moved = moveBesideBy (displacementTo dir) reference toBeMoved
+
+atopAllReactives :: [Reactive a] -> Reactive [a]
+atopAllReactives = foldr (atopReactives (:)) (constant [] empty)
+
+seperatedBy :: V2 Double -> Form -> [Reactive a] -> Reactive [a]
+seperatedBy dir seperator [] = constant [] empty
+seperatedBy dir seperator (x:xs) =
+    atopAllReactives (placedBesidesTo dir withSeperators)
+  where
+    withSeperators = x : map (attachFormTo (-dir) seperator) xs
 
 onVisual :: (Form -> Form) -> Reactive a -> Reactive a
 onVisual change reactive = reactive { visual = change (visual reactive) }
