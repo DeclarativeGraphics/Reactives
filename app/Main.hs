@@ -13,14 +13,17 @@ import Reactive (Reactive(..))
 import RunReactive (optionalUpdate, runReactive)
 import Utils (orElse)
 import Linear
+import Control.Monad ((<=<), liftM2)
 
 main :: IO ()
-main = runReactive (move (V2 100 100) . moCounter) (0, False)
+main = runReactive (move (V2 100 100) . viewList) [0, 1, 2, 3, 4]
+--main = runReactive (move (V2 100 100) . moCounter) (0, False)
+--main = runReactive (move (V2 100 100) . viewCounter) 0
 
 dFont :: TextStyle
 dFont = font "monospace" 30
 
-
+{-
 
 pairTemplate :: Reactive a -> Reactive b -> Reactive (a, b)
 pairTemplate fstReactive sndReactive =
@@ -35,14 +38,14 @@ viewPair (mLeft, mRight) =
   move (V2 200 200) $ rotateRad (fromIntegral (mLeft + 10 * mRight) * pi / 180) $
     pairTemplate (viewCounter mLeft) (viewCounter mRight)
 
-
+-}
 
 
 listTemplate :: [Reactive a] -> Reactive [a]
 listTemplate reactives =
     Reactive.attachFormTo left leftBracket $
       Reactive.attachFormTo right rightBracket $
-        Reactive.seperatedBy right comma reactives
+        Reactive.separatedBy right comma reactives
   where
     leftBracket = text dFont "["
     rightBracket = text dFont "]"
@@ -52,32 +55,30 @@ viewList :: [Int] -> Reactive [Int]
 viewList = move (V2 100 100) . listTemplate . map viewCounter
 
 
-addMouseOver :: (Bool -> a -> Reactive (Maybe a)) -> (a, Bool) -> Reactive (Maybe (a, Bool))
+addMouseOver :: (Bool -> a -> Reactive a) -> (a, Bool) -> Reactive (a, Bool)
 addMouseOver innerView (model, mouseIsOver)
-  = Reactive.postEvent
-      (\maybeNewModel -> Reactive.mouseMove (handleMouseMove maybeNewModel))
+  = Reactive.onEvent
+      (Reactive.mouseMove handleMouseMove)
       innerReactive
   where
-    innerReactive = innerView mouseIsOver model
-    handleMouseMove maybeNewModel pos =
-      (maybeNewModel `orElse` model, Reactive.isInside innerReactive pos)
+    innerReactive = fmap (flip (,) mouseIsOver) $ innerView mouseIsOver model
+    handleMouseMove pos (newModel, _) =
+      (newModel, Reactive.isInside innerReactive pos)
 
 moCounter :: (Int, Bool) -> Reactive (Int, Bool)
-moCounter = optionalUpdate (addMouseOver counterMouseOver)
+moCounter = addMouseOver counterMouseOver
 
-counterMouseOver :: Bool -> Int -> Reactive (Maybe Int)
+counterMouseOver :: Bool -> Int -> Reactive Int
 counterMouseOver mouseIsOver model
   = Reactive.attachFormTo right (text dFont (show mouseIsOver))
-  $ viewCounterMaybe model
-
+  $ viewCounter model
 
 
 viewCounter :: Int -> Reactive Int
-viewCounter = optionalUpdate viewCounterMaybe
-
-viewCounterMaybe :: Int -> Reactive (Maybe Int)
-viewCounterMaybe number
-  = Reactive.andFilterOutside
-  $ Reactive.andOnEvent (Reactive.mouseMove (const (number + 1)))
-  $ Reactive.onEvent (Reactive.click MBLeft (number + 1))
-  $ Reactive.constant Nothing (text dFont (show number))
+viewCounter
+  = Reactive.wrapOutsideFilter
+  $ Reactive.onEvent
+      (Reactive.andThenEvent
+        (Reactive.mouseMove (const (+1)))
+        (Reactive.click MBLeft (+1)) )
+  . Reactive.fromModel (text dFont . show)

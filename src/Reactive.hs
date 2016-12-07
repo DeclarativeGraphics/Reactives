@@ -10,7 +10,7 @@ import Graphics.Declarative.SDL.Input
 
 import Data.Lens
 import Utils (orElse, orTry)
-import Control.Monad (join)
+import Control.Monad (join, liftM2)
 
 import Linear
 
@@ -31,43 +31,35 @@ irreactive form = Reactive
 constant :: a -> Form -> Reactive a
 constant value form = pure value <* irreactive form
 
-onEvent :: (Input -> a) -> Reactive b -> Reactive a
-onEvent reaction reactive =
-  Reactive reaction (visual reactive)
+fromModel :: (a -> Form) -> a -> Reactive a
+fromModel produceForm model = pure model <* irreactive (produceForm model)
 
-andOnEvent :: (Input -> Maybe a) -> Reactive (Maybe a) -> Reactive (Maybe a)
-andOnEvent eventHandler reactive =
+onEvent :: (Input -> b -> a) -> Reactive b -> Reactive a
+onEvent eventHandler reactive =
     Reactive reaction (visual reactive)
   where
-    reaction event =
-      (eventHandler event) `orTry`
-      (react reactive event)
+    reaction event = eventHandler event (react reactive event)
 
-postEvent :: (b -> Input -> a) -> Reactive b -> Reactive a
-postEvent eventHandler reactive =
-    Reactive reaction (visual reactive)
+click :: MB -> (a -> a) -> Input -> a -> a
+click mouseButton changeModel (MouseInput (MousePress _ button))
+  | button == mouseButton = changeModel
+click _ changeModel _ = id
+
+mouseMove :: (V2 Double -> a -> a) -> Input -> a -> a
+mouseMove changeModel (MouseInput (MouseMove pos)) = changeModel pos
+mouseMove _ _ = id
+
+andThenEvent :: (Input -> b -> c) -> (Input -> a -> b) -> Input -> a -> c
+andThenEvent = liftM2 (.)
+
+wrapOutsideFilter :: (m -> Reactive m) -> m -> Reactive m
+wrapOutsideFilter view model =
+    Reactive.onEvent handleEvent innerReactive
   where
-    reaction event = eventHandler (react reactive event) event
-
-click :: MB -> a -> Input -> Maybe a
-click mouseButton value (MouseInput (MousePress _ button))
-  | button == mouseButton = Just value
-click _ _ _ = Nothing
-
-mouseMove :: (V2 Double -> a) -> Input -> Maybe a
-mouseMove callback (MouseInput (MouseMove pos)) = Just (callback pos)
-mouseMove _ _ = Nothing
-
-andFilterOutside :: Reactive (Maybe a) -> Reactive (Maybe a)
-andFilterOutside = fmap join . filterOutside
-
-filterOutside :: Reactive a -> Reactive (Maybe a)
-filterOutside reactive =
-    reactive { react = fmap (react reactive) . whenInside }
-  where
-    whenInside event
-      | eventInside reactive event = Just event
-      | otherwise = Nothing
+    innerReactive = view model
+    handleEvent event newModel
+      | eventInside innerReactive event = newModel
+      | otherwise = model
 
 isInside :: HasBorder a => a -> V2 Double -> Bool
 isInside sth pos =
@@ -104,9 +96,9 @@ besidesTo dir combine reference toBeMoved =
 atopAllReactives :: [Reactive a] -> Reactive [a]
 atopAllReactives = foldr (atopReactives (:)) (constant [] empty)
 
-seperatedBy :: V2 Double -> Form -> [Reactive a] -> Reactive [a]
-seperatedBy dir seperator [] = constant [] empty
-seperatedBy dir seperator (x:xs) =
+separatedBy :: V2 Double -> Form -> [Reactive a] -> Reactive [a]
+separatedBy dir seperator [] = constant [] empty
+separatedBy dir seperator (x:xs) =
     atopAllReactives (placedBesidesTo dir withSeperators)
   where
     withSeperators = x : map (attachFormTo (-dir) seperator) xs
