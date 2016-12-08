@@ -17,13 +17,13 @@ import qualified Reactive
 import Reactive (Reactive(..), atopReactives)
 import Utils (orElse)
 
-runReactive :: Show model => (model -> Reactive model) -> model -> IO ()
+runReactive :: (model -> Reactive model) -> model -> IO ()
 runReactive view initial = runSDL $
   withWindow "DeclarativeGraphics-SDL" SDL.defaultWindow $ \window ->
   withRenderer SDL.defaultRenderer window $ \renderer ->
   runReactiveInSDL view initial window renderer
 
-runReactiveInSDL :: Show model => (model -> Reactive model) -> model -> SDL.Window -> SDL.Renderer -> IO ()
+runReactiveInSDL :: (model -> Reactive model) -> model -> SDL.Window -> SDL.Renderer -> IO ()
 runReactiveInSDL view initial window renderer = loop (initial, view initial)
   where
     loop state = do
