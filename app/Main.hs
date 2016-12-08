@@ -20,7 +20,7 @@ main :: IO ()
 --main = runReactive (move (V2 100 100) . moCounter) (0, False)
 --main = runReactive (move (V2 100 100) . viewCounter) 0
 --main = runReactive (move (V2 100 100) . viewPair) (0, 1)
-main = runReactive (move (V2 100 100) . viewTextField defaultTextStyle) (textField "Hel" "lo, World!")
+main = runReactive (move (V2 100 100) . myTextField) (textField "Hel" "lo, World!", True)
 
 dFont :: TextStyle
 dFont = font "monospace" 30
@@ -86,7 +86,7 @@ viewCounter
         (Event.buttonGuard MBLeft (\pos -> (+1)))
 
 
-data TextField = TextField String String deriving (Show)
+data TextField = TextField String String
 
 textField :: String -> String -> TextField
 textField leftFromCaret rightFromCaret =
@@ -111,8 +111,8 @@ deleteRight tf = tf
 addText :: String -> TextField -> TextField
 addText str (TextField left right) = TextField (reverse str ++ left) right
 
-viewTextField :: TextStyle -> TextField -> Reactive TextField
-viewTextField textStyle =
+viewTextField :: TextStyle -> Bool -> TextField -> Reactive TextField
+viewTextField textStyle drawCaret =
     Reactive.onEvent eventHandler
   . Reactive.fromModel renderTextField
   where
@@ -127,8 +127,30 @@ viewTextField textStyle =
     renderTextField (TextField leftFromCaret rightFromCaret) =
       appendTo right
         [ text textStyle (reverse leftFromCaret)
-        , collapseBorder $ alignHV (0, 0) caret
+        , if drawCaret then collapseBorder (alignHV (0, 0) caret) else empty
         , text textStyle rightFromCaret ]
 
     caretHeight = graphicHeight (text textStyle "|")
     caret = filled black (rectangle (caretHeight*0.05) caretHeight)
+
+type IsActive m = (m, Bool)
+
+wrapActivation :: (Bool -> m -> Reactive m) -> IsActive m -> Reactive (IsActive m)
+wrapActivation view (model, isActive) =
+    Reactive.onEvent eventHandler innerReactive
+  where
+    innerReactive = fmap (flip (,) isActive) (view isActive model)
+
+    handleMouseLeft pos (model, _) =
+      (model, Reactive.isInside innerReactive pos)
+
+    catchRest event (newModel, isActive)
+      | isActive  = (newModel, isActive)
+      | otherwise = (model, isActive)
+
+    eventHandler =
+      Event.handleChain
+        [ Event.mousePress (Event.buttonGuard MBLeft handleMouseLeft)
+        , catchRest ]
+
+myTextField = wrapActivation (viewTextField dFont)
