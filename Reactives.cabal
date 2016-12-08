@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Reactive, RunReactive, Utils
+  exposed-modules:     Reactive, Event, RunReactive, Utils
   build-depends:       base
                      , sdl2
                      , linear

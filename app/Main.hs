@@ -10,20 +10,21 @@ import Graphics.Declarative.SDL.Input
 
 import qualified Reactive
 import Reactive (Reactive(..))
+import qualified Event
 import RunReactive (optionalUpdate, runReactive)
 import Utils (orElse)
 import Linear
 import Control.Monad ((<=<), liftM2)
 
 main :: IO ()
-main = runReactive (move (V2 100 100) . viewList) [0, 1, 2, 3, 4]
+--main = runReactive (move (V2 100 100) . viewList) [0, 1, 2, 3, 4]
 --main = runReactive (move (V2 100 100) . moCounter) (0, False)
 --main = runReactive (move (V2 100 100) . viewCounter) 0
+main = runReactive (move (V2 100 100) . viewPair) (0, 1)
 
 dFont :: TextStyle
 dFont = font "monospace" 30
 
-{-
 
 pairTemplate :: Reactive a -> Reactive b -> Reactive (a, b)
 pairTemplate fstReactive sndReactive =
@@ -37,8 +38,6 @@ viewPair :: (Int, Int) -> Reactive (Int, Int)
 viewPair (mLeft, mRight) =
   move (V2 200 200) $ rotateRad (fromIntegral (mLeft + 10 * mRight) * pi / 180) $
     pairTemplate (viewCounter mLeft) (viewCounter mRight)
-
--}
 
 
 listTemplate :: [Reactive a] -> Reactive [a]
@@ -58,7 +57,7 @@ viewList = move (V2 100 100) . listTemplate . map viewCounter
 addMouseOver :: (Bool -> a -> Reactive a) -> (a, Bool) -> Reactive (a, Bool)
 addMouseOver innerView (model, mouseIsOver)
   = Reactive.onEvent
-      (Reactive.mouseMove handleMouseMove)
+      (Event.mouseMove handleMouseMove)
       innerReactive
   where
     innerReactive = fmap (flip (,) mouseIsOver) $ innerView mouseIsOver model
@@ -76,9 +75,12 @@ counterMouseOver mouseIsOver model
 
 viewCounter :: Int -> Reactive Int
 viewCounter
-  = Reactive.wrapOutsideFilter
-  $ Reactive.onEvent
-      (Reactive.andThenEvent
-        (Reactive.mouseMove (const (+1)))
-        (Reactive.click MBLeft (+1)) )
+  = Reactive.wrapFilterOutsideEvents
+  $ Reactive.onEvent eventHandler
   . Reactive.fromModel (text dFont . show)
+  where
+    eventHandler =
+      Event.mouseMove (\pos -> (+1))
+      `Event.handleAfter`
+      Event.mousePress
+        (Event.buttonGuard MBLeft (\pos -> (+1)))

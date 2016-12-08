@@ -40,20 +40,8 @@ onEvent eventHandler reactive =
   where
     reaction event = eventHandler event (react reactive event)
 
-click :: MB -> (a -> a) -> Input -> a -> a
-click mouseButton changeModel (MouseInput (MousePress _ button))
-  | button == mouseButton = changeModel
-click _ changeModel _ = id
-
-mouseMove :: (V2 Double -> a -> a) -> Input -> a -> a
-mouseMove changeModel (MouseInput (MouseMove pos)) = changeModel pos
-mouseMove _ _ = id
-
-andThenEvent :: (Input -> b -> c) -> (Input -> a -> b) -> Input -> a -> c
-andThenEvent = liftM2 (.)
-
-wrapOutsideFilter :: (m -> Reactive m) -> m -> Reactive m
-wrapOutsideFilter view model =
+wrapFilterOutsideEvents :: (m -> Reactive m) -> m -> Reactive m
+wrapFilterOutsideEvents view model =
     Reactive.onEvent handleEvent innerReactive
   where
     innerReactive = view model
@@ -106,8 +94,8 @@ separatedBy dir seperator (x:xs) =
 onVisual :: (Form -> Form) -> Reactive a -> Reactive a
 onVisual change reactive = reactive { visual = change (visual reactive) }
 
-modifyEvents :: M33 Double -> Reactive a -> Reactive a
-modifyEvents matrix reactive =
+modifyEventPositions :: M33 Double -> Reactive a -> Reactive a
+modifyEventPositions matrix reactive =
     reactive { react = react reactive . offsetEvent }
   where
     transformPos (V2 x y) = toV2 $ matrix !* (V3 x y 1)
@@ -127,7 +115,7 @@ instance Applicative Reactive where
 
 instance Transformable (Reactive a) where
   transformBy mat reactive =
-    onVisual (transformBy mat) $ modifyEvents (inv33 mat) reactive
+    onVisual (transformBy mat) $ modifyEventPositions (inv33 mat) reactive
 
 instance HasBorder (Reactive a) where
   getBorder = getBorder . visual
