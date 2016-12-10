@@ -16,75 +16,11 @@ import Utils (orElse)
 import Linear
 
 main :: IO ()
---main = runReactive (move (V2 100 100) . viewList) [0, 1, 2, 3, 4]
---main = runReactive (move (V2 100 100) . moCounter) (0, False)
---main = runReactive (move (V2 100 100) . viewCounter) 0
---main = runReactive (move (V2 100 100) . viewPair) (0, 1)
-main = runReactive (move (V2 100 100) . myTextField) (textField "Hel" "lo, World!", True)
+main = runReactive (move (V2 100 100) . viewExpr)
+  (EAtom (TypeLit (textField "Form" "", False)) Hole)
 
 dFont :: TextStyle
-dFont = font "monospace" 30
-
-
-pairTemplate :: Reactive a -> Reactive b -> Reactive (a, b)
-pairTemplate fstReactive sndReactive =
-  centeredHV $
-    Reactive.besidesTo right (,)
-      (Reactive.attachFormTo right comma fstReactive)
-      sndReactive
-  where comma = text dFont ","
-
-viewPair :: (Int, Int) -> Reactive (Int, Int)
-viewPair (mLeft, mRight) =
-  move (V2 200 200) $ rotateRad (fromIntegral (mLeft + 10 * mRight) * pi / 180) $
-    pairTemplate (viewCounter mLeft) (viewCounter mRight)
-
-
-listTemplate :: [Reactive a] -> Reactive [a]
-listTemplate reactives =
-    Reactive.attachFormTo left leftBracket $
-      Reactive.attachFormTo right rightBracket $
-        Reactive.separatedBy right comma reactives
-  where
-    leftBracket = text dFont "["
-    rightBracket = text dFont "]"
-    comma = text dFont ", "
-
-viewList :: [Int] -> Reactive [Int]
-viewList = move (V2 100 100) . listTemplate . map viewCounter
-
-
-addMouseOver :: (Bool -> a -> Reactive a) -> (a, Bool) -> Reactive (a, Bool)
-addMouseOver innerView (model, mouseIsOver)
-  = Reactive.onEvent
-      (Event.mouseMove handleMouseMove)
-      innerReactive
-  where
-    innerReactive = fmap (flip (,) mouseIsOver) $ innerView mouseIsOver model
-    handleMouseMove pos (newModel, _) =
-      (newModel, Reactive.isInside innerReactive pos)
-
-moCounter :: (Int, Bool) -> Reactive (Int, Bool)
-moCounter = addMouseOver counterMouseOver
-
-counterMouseOver :: Bool -> Int -> Reactive Int
-counterMouseOver mouseIsOver model
-  = Reactive.attachFormTo right (text dFont (show mouseIsOver))
-  $ viewCounter model
-
-
-viewCounter :: Int -> Reactive Int
-viewCounter
-  = Reactive.wrapFilterOutsideEvents
-  $ Reactive.onEvent eventHandler
-  . Reactive.fromModel (text dFont . show)
-  where
-    eventHandler =
-      Event.mouseMove (\pos -> (+1))
-      `Event.handleAfter`
-      Event.mousePress
-        (Event.buttonGuard MBLeft (\pos -> (+1)))
-
+dFont = font "monospace" 18
 
 data TextField = TextField String String
 
@@ -153,4 +89,34 @@ wrapActivation view (model, isActive) =
         [ Event.mousePress (Event.buttonGuard MBLeft handleMouseLeft)
         , catchRest ]
 
+myTextField :: IsActive TextField -> Reactive (IsActive TextField)
 myTextField = wrapActivation (viewTextField dFont)
+
+
+data Expr
+  = EAtom Type Atom
+
+data Atom = Hole
+
+data Type = TypeLit (IsActive TextField)
+
+
+viewExpr :: Expr -> Reactive Expr
+viewExpr (EAtom typ atom) =
+    Reactive.besidesTo down EAtom
+      typeWithLine
+      (viewAtom atom)
+  where
+    typeWithLine =
+      Reactive.attachFormTo down
+        (padded 10 (filled black (rectangle 100 1)))
+        (viewType typ)
+
+viewType :: Type -> Reactive Type
+viewType (TypeLit text) =
+  Reactive.onVisual centeredHV $ TypeLit <$> myTextField text
+
+viewAtom :: Atom -> Reactive Atom
+viewAtom Hole =
+  Reactive.constant Hole
+    (outlined (solid grey) (rectangle 40 20))
