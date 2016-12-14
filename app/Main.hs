@@ -47,6 +47,9 @@ deleteRight tf = tf
 addText :: String -> TextField -> TextField
 addText str (TextField left right) = TextField (reverse str ++ left) right
 
+textFieldString :: TextField -> String
+textFieldString (TextField left right) = reverse left ++ right
+
 viewTextField :: TextStyle -> Bool -> TextField -> Reactive TextField
 viewTextField textStyle drawCaret =
     Reactive.onEvent eventHandler
@@ -60,14 +63,20 @@ viewTextField textStyle drawCaret =
         , Event.keyPress (Event.keyGuard KeyDelete deleteRight)
         , Event.textInput addText ]
 
-    renderTextField (TextField leftFromCaret rightFromCaret) =
-      appendTo right
-        [ text textStyle (reverse leftFromCaret)
-        , if drawCaret then collapseBorder (alignHV (0, 0) caret) else empty
-        , text textStyle rightFromCaret ]
+    renderTextField tf@(TextField leftFromCaret rightFromCaret) =
+      collapseBorder
+        (appendTo right
+          [ Bordered (getBorder textUntilCaret) empty
+          , alignHV (0, 0) caret ])
+      `atop` text textStyle (textFieldString tf)
+      where
+        textUntilCaret = text textStyle (reverse leftFromCaret)
 
     caretHeight = graphicHeight (text textStyle "|")
     caret = filled black (rectangle (caretHeight*0.05) caretHeight)
+
+
+
 
 type IsActive m = (m, Bool)
 
@@ -114,7 +123,7 @@ viewExpr (EAtom typ atom) =
 
 viewType :: Type -> Reactive Type
 viewType (TypeLit text) =
-  Reactive.onVisual centeredHV $ TypeLit <$> myTextField text
+  centeredHV $ TypeLit <$> myTextField text
 
 viewAtom :: Atom -> Reactive Atom
 viewAtom Hole =
