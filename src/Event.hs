@@ -1,9 +1,11 @@
 module Event where
 
 import Graphics.Declarative.SDL.Input
+import Graphics.Declarative.Bordered
 import Control.Monad (liftM2)
 
 import Linear
+import Utils (isInside)
 
 mouseInput :: (MouseInput -> a -> a) -> (Input -> a -> a)
 mouseInput changeModel (MouseInput input) = changeModel input
@@ -36,6 +38,11 @@ buttonGuard :: MB -> (V2 Double -> a -> a) -> (MB -> V2 Double -> a -> a)
 buttonGuard shouldButton changeModel actualButton
   | shouldButton == actualButton = changeModel
   | otherwise                    = const id
+
+insideGuard :: HasBorder b => b -> (a -> a) -> (V2 Double -> a -> a)
+insideGuard bordered changeModel pos model
+  | isInside bordered pos = changeModel model
+  | otherwise             = model
 
 mouseMoveGuard :: (V2 Double -> a -> a) -> (MouseInput -> a -> a)
 mouseMoveGuard changeModel (MouseMove pos) = changeModel pos

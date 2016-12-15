@@ -9,7 +9,7 @@ import Graphics.Declarative.Cairo.Shape
 import Graphics.Declarative.SDL.Input
 
 import Data.Lens
-import Utils (orElse, orTry)
+import Utils (orElse, orTry, isInside, leftAngle, rightAngle)
 import Control.Monad (join, liftM2)
 
 import Linear
@@ -49,15 +49,6 @@ wrapFilterOutsideEvents view model =
       | eventInside innerReactive event = newModel
       | otherwise = model
 
-isInside :: HasBorder a => a -> V2 Double -> Bool
-isInside sth pos =
-  purelyPositive (pos - topLeft) &&
-  purelyPositive (bottomRight - pos)
-  where
-    (topLeft, bottomRight) =
-      Border.getBoundingBox $ getBorder sth
-    purelyPositive (V2 x y) = x >= 0 && y >= 0
-
 eventInside :: HasBorder a => a -> Input -> Bool
 eventInside sth (MouseInput m) = isInside sth (get mouseInputPos m)
 eventInside sth _ = True
@@ -90,7 +81,23 @@ separatedBy dir seperator (x:xs) =
     atopAllReactives (placedBesidesTo dir withSeperators)
   where
     withSeperators = x : map (attachFormTo (-dir) seperator) xs
-
+{- uuhm ye
+withSeparator :: V2 Double -> (a -> b -> c) -> (V2 Double -> V2 Double -> Form) -> Reactive a -> Reactive b -> Reactive c
+withSeparator dir combine seperatorFromSpan reference toBeMoved =
+    besidesTo dir combine (attachFormTo dir seperator reference) toBeMoved
+  where
+    borderDist sth dir = Border.borderDistance (getBorder sth) dir
+    maxVec v1 v2
+      | norm v1 > norm v2 = v1
+      | otherwise    = v2
+    toLeft = leftAngle dir
+    toRight = rightAngle dir
+    spanLeft =
+      maxVec (borderDist reference toLeft) (borderDist toBeMoved toLeft)
+    spanRight =
+      maxVec (borderDist reference toRight) (borderDist toBeMoved toRight)
+    seperator = seperatorFromSpan spanLeft spanRight
+-}
 onVisual :: (Form -> Form) -> Reactive a -> Reactive a
 onVisual change reactive = reactive { visual = change (visual reactive) }
 
@@ -119,3 +126,7 @@ instance Transformable (Reactive a) where
 
 instance HasBorder (Reactive a) where
   getBorder = getBorder . visual
+
+instance Monoid a => Combinable (Reactive a) where
+  empty = Reactive.constant mempty empty
+  reactiveA `atop` reactiveB = atopReactives mappend reactiveA reactiveB

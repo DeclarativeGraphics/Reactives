@@ -12,13 +12,14 @@ import qualified Reactive
 import Reactive (Reactive(..))
 import qualified Event
 import RunReactive (runReactive)
-import Utils (orElse)
+import Data.Monoid (First(..))
+import Utils (orElse, isInside, orTry, rightAngle)
 import Linear
 import FormUtils
 
 main :: IO ()
 main = runReactive (move (V2 100 100) . viewExpr)
-  (EHole (TypeLit (InActive "Form")))
+  (ValueHole (TypeHole Nothing) Nothing)
 
 dFont :: TextStyle
 dFont = font "monospace" 18
@@ -95,14 +96,14 @@ viewActivatable makeInActive makeActive viewActive viewInActive activeOr =
     (Active active) ->
       let activeReactive = viewActive active
           maybeMakeInactive (MouseInput (MousePress pos MBLeft))
-            | not (Reactive.isInside activeReactive pos) =
+            | not (isInside activeReactive pos) =
               InActive . makeInActive
           maybeMakeInactive event = Active
        in Reactive.onEvent maybeMakeInactive activeReactive
     (InActive inActive) ->
       let inActiveReactive = viewInActive inActive
           maybeMakeActive (MouseInput (MousePress pos MBLeft))
-            | Reactive.isInside inActiveReactive pos = Active . makeActive
+            | isInside inActiveReactive pos = Active . makeActive
           maybeMakeActive event                  = InActive
        in Reactive.onEvent maybeMakeActive inActiveReactive
 
@@ -114,22 +115,128 @@ viewFocusableTextField style =
     (viewTextField style)
     (Reactive.fromModel (text style))
 
-
-data Expr
-  = EHole Type
-
-data Type = TypeLit (ActiveOr TextField String)
-
-
-viewExpr :: Expr -> Reactive Expr
-viewExpr (EHole typ) =
-  EHole <$>
-    Reactive.onVisual
-      (addBorder grey)
-      (Reactive.onVisual (padded 4) (viewType grey typ))
-
-viewType :: RGB -> Type -> Reactive Type
-viewType mainColor (TypeLit text) =
-    centeredHV (TypeLit <$> viewFocusableTextField font text)
+suggestionListReactive :: (a -> Form) -> [a] -> Reactive (Maybe a)
+suggestionListReactive render ls =
+  getFirst <$> (appendTo down (map reactive ls))
   where
-    font = dFont { textColor = mainColor }
+    reactive = fmap First . suggestionReactive render
+
+suggestionReactive :: (a -> Form) -> a -> Reactive (Maybe a)
+suggestionReactive render value =
+    Reactive.onEvent eventHandler reactive
+  where
+    reactive = Reactive.constant Nothing (render value)
+
+    eventHandler =
+      Event.mousePress
+        (Event.buttonGuard MBLeft
+          (Event.insideGuard reactive (const (Just value))))
+
+data ExprModel
+  = ValueHole TypeModel (Maybe [ExprModel])
+
+data TypeModel
+  = TypeConst Type
+  | TypeHole (Maybe [TypeModel])
+
+data Type
+  = IntType
+  | BoolType
+  | UnitType
+  | FunType Type Type
+  | Unkown
+
+extractType :: TypeModel -> Type
+extractType (TypeConst typ) = typ
+extractType (TypeHole _) = Unkown
+
+heavyAsterisk :: Form
+heavyAsterisk =
+  text (dFont { textColor = grey, fontFamily = "Sans Serif" }) "✱"
+
+viewExpr :: ExprModel -> Reactive ExprModel
+viewExpr (ValueHole typeModel Nothing) =
+    separator ValueHole isTypeOfSeparator
+      typeReactive
+      holeReactive
+  where
+    typeReactive = viewType typeModel
+    holeReactive =
+      Reactive.constant Nothing typeForm
+
+    typeForm =
+      grayPadBorder
+        (renderType
+          (dFont { textColor = gray })
+          (extractType typeModel))
+
+viewType :: TypeModel -> Reactive TypeModel
+viewType (TypeHole Nothing) =
+    Reactive.onEvent eventHandler reactive
+  where
+    reactive = Reactive.constant (TypeHole Nothing) render
+
+    render = grayPadBorder heavyAsterisk
+
+    eventHandler =
+      Event.mousePress
+        (Event.buttonGuard MBLeft
+          (Event.insideGuard reactive (const (TypeHole (Just suggestionList)))))
+
+    suggestionList =
+      [ TypeConst IntType
+      , TypeConst BoolType
+      , TypeConst UnitType ]
+
+viewType (TypeHole (Just list)) =
+    Reactive.onVisual grayPadBorder reactive
+  where
+    reactive = (`orElse` (TypeHole (Just list))) <$> suggestionsReactive
+
+    suggestionsReactive =
+      Reactive.besidesTo down orTry
+        holeReactive
+        (suggestionListReactive (visual . viewType) list)
+
+    holeReactive =
+      Reactive.onEvent
+        (Event.mousePress
+          (Event.buttonGuard MBLeft
+            (Event.insideGuard holeReactive (const (Just (TypeHole Nothing))))))
+        (Reactive.constant Nothing heavyAsterisk)
+
+viewType (TypeConst typ) =
+    Reactive.constant (TypeConst typ) (renderType dFont typ)
+
+renderType :: TextStyle -> Type -> Form
+renderType style typ = text style (typeToString typ)
+  where
+    typeToString IntType = "Int"
+    typeToString BoolType = "Bool"
+    typeToString UnitType = "()"
+    typeToString Unkown = "?"
+    typeToString (FunType arg res) =
+      typeToString arg ++ " -> " ++ typeToString res
+
+
+grayPadBorder :: Form -> Form
+grayPadBorder = addBorder gray . padded 4
+
+isTypeOfSeparator :: Double -> Double -> Form
+isTypeOfSeparator spanLeft spanRight =
+    padded 4 $
+      outlined (solid black) $
+        Bordered
+          (Border.fromBoundingBox (vecLeft, vecRight + sepDir))
+          (openPath $
+            pp (vecLeft + sepDir) `lineConnect`
+            pp vecLeft `lineConnect`
+            pp vecRight `lineConnect`
+            pp (vecRight + sepDir))
+  where
+    toTuple (V2 x y) = (x, y)
+    pp = pathPoint . toTuple
+
+    sepDir = down ^* 5
+    vecLeft = left ^* spanLeft
+    vecRight = right ^* spanRight
