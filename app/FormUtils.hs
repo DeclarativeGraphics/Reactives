@@ -12,9 +12,15 @@ import Reactive (Reactive(..))
 
 addBorder :: RGB -> Form -> Form
 addBorder color form =
-  outlined (solid color) rect `atop` form
-  where
-    rect = rectangleFromBB (Border.getBoundingBox (getBorder form))
+  outlined (solid color) (shapeFromForm form) `atop` form
+
+addBackground :: RGB -> Form -> Form
+addBackground color form =
+  form `atop` filled color (shapeFromForm form)
+
+shapeFromForm :: Form -> Bordered Shape
+shapeFromForm form =
+  rectangleFromBB (Border.getBoundingBox (getBorder form))
 
 separator :: (a -> b -> c) -> (Double -> Double -> Form) -> Reactive a -> Reactive b -> Reactive c
 separator combine separatorFromDists reactiveA reactiveB =
@@ -25,3 +31,9 @@ separator combine separatorFromDists reactiveA reactiveB =
     bd dir reactive = Border.borderDistance (getBorder reactive) dir
     maxLeft = max (bd left reactiveA) (bd left reactiveB)
     maxRight = max (bd right reactiveA) (bd right reactiveB)
+
+withParens :: TextStyle -> Reactive a -> Reactive a
+withParens style reactive =
+  Reactive.attachFormTo left (text style "(") $
+  Reactive.attachFormTo right (text style ")")
+  reactive

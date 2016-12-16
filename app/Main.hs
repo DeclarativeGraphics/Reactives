@@ -18,7 +18,7 @@ import Linear
 import FormUtils
 
 main :: IO ()
-main = runReactive (move (V2 100 100) . viewExpr)
+main = runReactive (move (V2 100 100) . alignHV (0, 0) . viewExpr)
   (ValueHole (TypeHole Nothing) Nothing)
 
 dFont :: TextStyle
@@ -115,11 +115,15 @@ viewFocusableTextField style =
     (viewTextField style)
     (Reactive.fromModel (text style))
 
+getTextFieldString :: ActiveOr TextField String -> String
+getTextFieldString (Active textField) = textFieldString textField
+getTextFieldString (InActive str) = str
+
 suggestionListReactive :: (a -> Form) -> [a] -> Reactive (Maybe a)
 suggestionListReactive render ls =
   getFirst <$> (appendTo down (map reactive ls))
   where
-    reactive = fmap First . suggestionReactive render
+    reactive = align right 0 . fmap First . suggestionReactive render
 
 suggestionReactive :: (a -> Form) -> a -> Reactive (Maybe a)
 suggestionReactive render value =
@@ -138,21 +142,52 @@ data ExprModel
 data TypeModel
   = TypeConst Type
   | TypeHole (Maybe [TypeModel])
+  | TypeFunc [RecordFieldTypeModel] TypeModel
 
 data Type
   = IntType
   | BoolType
   | UnitType
-  | FunType Type Type
-  | Unkown
 
-extractType :: TypeModel -> Type
-extractType (TypeConst typ) = typ
-extractType (TypeHole _) = Unkown
+data RecordFieldTypeModel
+  = RecordFieldType TypeModel (ActiveOr TextField String)
 
 heavyAsterisk :: Form
 heavyAsterisk =
   text (dFont { textColor = grey, fontFamily = "Sans Serif" }) "✱"
+
+renderTypeConst :: TextStyle -> Type -> Form
+renderTypeConst style typ = text style (typeConstToString typ)
+  where
+    typeConstToString IntType = "Int"
+    typeConstToString BoolType = "Bool"
+    typeConstToString UnitType = "Unit"
+
+renderUnkownType :: TextStyle -> Form
+renderUnkownType style = text style "?"
+
+renderTypeFunc :: TextStyle -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
+renderTypeFunc style combine argsReactive resReactive =
+    Reactive.besidesTo right combine
+      (Reactive.attachFormTo right
+        (centeredHV funcArrow)
+        (centeredHV argsReactive))
+      (centeredHV resReactive)
+  where
+    funcArrow = text style " → "
+
+renderRecordTypes :: TextStyle -> [Reactive a] -> Reactive [a]
+renderRecordTypes style reactives =
+  Reactive.separatedBy right
+    (gap 10 10)
+    (map centeredHV reactives)
+
+renderRecordFieldType :: (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
+renderRecordFieldType combine typeReactive nameReactive =
+  Reactive.besidesTo down combine
+    (centeredHV typeReactive)
+    (centeredHV nameReactive)
+
 
 viewExpr :: ExprModel -> Reactive ExprModel
 viewExpr (ValueHole typeModel Nothing) =
@@ -162,13 +197,28 @@ viewExpr (ValueHole typeModel Nothing) =
   where
     typeReactive = viewType typeModel
     holeReactive =
-      Reactive.constant Nothing typeForm
+      Reactive.constant Nothing holeWithTypeIndicatorForm
 
-    typeForm =
+    holeWithTypeIndicatorForm =
       grayPadBorder
-        (renderType
+        (renderTypeIndicator
           (dFont { textColor = gray })
-          (extractType typeModel))
+          typeModel)
+
+renderTypeIndicator :: TextStyle -> TypeModel -> Form
+renderTypeIndicator style (TypeConst typeC) = renderTypeConst style typeC
+renderTypeIndicator style (TypeHole _) = renderUnkownType style
+renderTypeIndicator style (TypeFunc args res) =
+    Reactive.visual (renderTypeFunc style mappend renderedArgs renderedRes)
+  where
+    renderedRes = Reactive.irreactive (renderTypeIndicator style res)
+    renderedArgs = Reactive.irreactive $ visual $
+      renderRecordTypes style (map renderField args)
+    renderField (RecordFieldType typeModel txtField) =
+      renderRecordFieldType mappend
+        (Reactive.irreactive (renderTypeIndicator style typeModel))
+        (Reactive.irreactive (text style (getTextFieldString txtField)))
+
 
 viewType :: TypeModel -> Reactive TypeModel
 viewType (TypeHole Nothing) =
@@ -186,7 +236,13 @@ viewType (TypeHole Nothing) =
     suggestionList =
       [ TypeConst IntType
       , TypeConst BoolType
-      , TypeConst UnitType ]
+      , TypeConst UnitType
+      , TypeFunc
+          [ RecordFieldType (TypeHole Nothing) (InActive "arg1")
+          , RecordFieldType (TypeHole Nothing) (InActive "arg2")
+          ]
+          (TypeHole Nothing)
+      ]
 
 viewType (TypeHole (Just list)) =
     Reactive.onVisual grayPadBorder reactive
@@ -205,19 +261,22 @@ viewType (TypeHole (Just list)) =
             (Event.insideGuard holeReactive (const (Just (TypeHole Nothing))))))
         (Reactive.constant Nothing heavyAsterisk)
 
-viewType (TypeConst typ) =
-    Reactive.constant (TypeConst typ) (renderType dFont typ)
-
-renderType :: TextStyle -> Type -> Form
-renderType style typ = text style (typeToString typ)
+viewType (TypeFunc args res) =
+    renderTypeFunc dFont TypeFunc
+      argsReactive
+      (viewType res)
   where
-    typeToString IntType = "Int"
-    typeToString BoolType = "Bool"
-    typeToString UnitType = "()"
-    typeToString Unkown = "?"
-    typeToString (FunType arg res) =
-      typeToString arg ++ " -> " ++ typeToString res
+    argsReactive = renderRecordTypes dFont (map viewRecordField args)
 
+viewType (TypeConst typ) =
+    Reactive.constant (TypeConst typ) (renderTypeConst dFont typ)
+
+
+viewRecordField :: RecordFieldTypeModel -> Reactive RecordFieldTypeModel
+viewRecordField (RecordFieldType typeModel textField) =
+  renderRecordFieldType RecordFieldType
+    (viewType typeModel)
+    (viewFocusableTextField dFont textField)
 
 grayPadBorder :: Form -> Form
 grayPadBorder = addBorder gray . padded 4

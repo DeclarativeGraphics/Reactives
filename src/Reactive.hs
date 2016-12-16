@@ -81,23 +81,7 @@ separatedBy dir seperator (x:xs) =
     atopAllReactives (placedBesidesTo dir withSeperators)
   where
     withSeperators = x : map (attachFormTo (-dir) seperator) xs
-{- uuhm ye
-withSeparator :: V2 Double -> (a -> b -> c) -> (V2 Double -> V2 Double -> Form) -> Reactive a -> Reactive b -> Reactive c
-withSeparator dir combine seperatorFromSpan reference toBeMoved =
-    besidesTo dir combine (attachFormTo dir seperator reference) toBeMoved
-  where
-    borderDist sth dir = Border.borderDistance (getBorder sth) dir
-    maxVec v1 v2
-      | norm v1 > norm v2 = v1
-      | otherwise    = v2
-    toLeft = leftAngle dir
-    toRight = rightAngle dir
-    spanLeft =
-      maxVec (borderDist reference toLeft) (borderDist toBeMoved toLeft)
-    spanRight =
-      maxVec (borderDist reference toRight) (borderDist toBeMoved toRight)
-    seperator = seperatorFromSpan spanLeft spanRight
--}
+
 onVisual :: (Form -> Form) -> Reactive a -> Reactive a
 onVisual change reactive = reactive { visual = change (visual reactive) }
 
