@@ -63,38 +63,82 @@ heavyAsterisk :: Form
 heavyAsterisk =
   text (dFont { textColor = grey, fontFamily = "Sans Serif" }) "✱"
 
-renderTypeConst :: TextStyle -> Type -> Form
-renderTypeConst style typ = text style (typeConstToString typ)
+data RenderConf
+  = RenderConf
+  { textStyle :: TextStyle
+  , groupingDepth :: Int
+  , groupingStyle :: GroupStyle
+  }
+
+data GroupStyle = FillGroups | FrameGroups
+
+typeRenderConf, exprRenderConf :: RenderConf
+typeRenderConf
+  = RenderConf
+  { textStyle = dFont
+  , groupingDepth = 0
+  , groupingStyle = FillGroups
+  }
+exprRenderConf
+  = RenderConf
+  { textStyle = dFont { textColor = gray }
+  , groupingDepth = 0
+  , groupingStyle = FrameGroups
+  }
+
+deeper :: RenderConf -> RenderConf
+deeper conf = conf { groupingDepth = groupingDepth conf + 1 }
+
+toplevel :: RenderConf -> RenderConf
+toplevel conf = conf { groupingDepth = 0 }
+
+
+renderHole :: Form -> Form
+renderHole = addBackground white . padded 2 . grayPadBorder
+
+renderTypeConst :: RenderConf -> Type -> Form
+renderTypeConst conf typ = text (textStyle conf) (typeConstToString typ)
   where
     typeConstToString IntType = "Int"
     typeConstToString BoolType = "Bool"
     typeConstToString UnitType = "Unit"
 
-renderUnkownType :: TextStyle -> Form
-renderUnkownType style = text style "?"
+renderUnkownType :: RenderConf -> Form
+renderUnkownType conf = text (textStyle conf) "?"
 
-renderTypeFunc :: TextStyle -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
-renderTypeFunc style combine argsReactive resReactive =
+renderTypeFunc :: RenderConf -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
+renderTypeFunc conf combine argsReactive resReactive =
     Reactive.besidesTo right combine
       (Reactive.attachFormTo right
         (centeredHV funcArrow)
         (centeredHV argsReactive))
       (centeredHV resReactive)
   where
-    funcArrow = text style " → "
+    funcArrow = text (textStyle conf) " → "
 
-renderRecordTypes :: TextStyle -> [Reactive a] -> Reactive [a]
-renderRecordTypes style reactives =
+renderRecordTypes :: RenderConf -> [Reactive a] -> Reactive [a]
+renderRecordTypes conf reactives =
   Reactive.separatedBy right
     (gap 10 10)
     (map centeredHV reactives)
 
-renderRecordFieldType :: (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
-renderRecordFieldType combine typeReactive nameReactive =
-  Reactive.besidesTo down combine
-    (centeredHV typeReactive)
-    (centeredHV nameReactive)
+renderRecordFieldType :: RenderConf -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
+renderRecordFieldType conf combine typeReactive nameReactive =
+  renderGrouping conf
+    (Reactive.besidesTo down combine
+      (centeredHV typeReactive)
+      (centeredHV nameReactive))
 
+renderGrouping :: RenderConf -> Reactive a -> Reactive a
+renderGrouping conf reactive =
+  Reactive.onVisual
+    ((case groupingStyle conf of
+        FillGroups -> addBackground fillColor
+        FrameGroups -> addBorder gray) . padded 4)
+    reactive
+  where
+    grayscale col = (col, col, col)
+    fillColor = grayscale (0.5 + 0.3 / (1 + fromIntegral (groupingDepth conf)))
 
 view :: ExprModel -> Reactive ExprModel
 view (ValueHole typeModel Nothing) =
@@ -102,39 +146,36 @@ view (ValueHole typeModel Nothing) =
       typeReactive
       holeReactive
   where
-    typeReactive = viewType typeModel
+    typeReactive = viewType typeRenderConf typeModel
     holeReactive =
       Reactive.constant Nothing holeWithTypeIndicatorForm
 
     holeWithTypeIndicatorForm =
-      grayPadBorder
-        (renderTypeIndicator
-          (dFont { textColor = gray })
-          typeModel)
+      renderHole (renderTypeIndicator exprRenderConf typeModel)
 
-renderTypeIndicator :: TextStyle -> TypeModel -> Form
-renderTypeIndicator style (TypeConst typeC) = renderTypeConst style typeC
-renderTypeIndicator style (TypeHole _) = renderUnkownType style
-renderTypeIndicator style (TypeFunc args res) =
-    Reactive.visual (renderTypeFunc style mappend renderedArgs renderedRes)
+renderTypeIndicator :: RenderConf -> TypeModel -> Form
+renderTypeIndicator conf (TypeConst typeC) = renderTypeConst conf typeC
+renderTypeIndicator conf (TypeHole _)      = renderUnkownType conf
+renderTypeIndicator conf (TypeFunc args res) =
+    Reactive.visual (renderTypeFunc conf mappend renderedArgs renderedRes)
   where
-    renderedRes = Reactive.irreactive (renderTypeIndicator style res)
+    renderedRes = Reactive.irreactive (renderTypeIndicator conf res)
     renderedArgs = Reactive.irreactive $ visual $
-      renderRecordTypes style (map renderField args)
+      renderRecordTypes conf (map renderField args)
     renderField (RecordFieldType typeModel txtField) =
-      renderRecordFieldType mappend
-        (Reactive.irreactive (renderTypeIndicator style typeModel))
+      renderRecordFieldType conf mappend
+        (Reactive.irreactive (renderTypeIndicator (deeper conf) typeModel))
         (Reactive.irreactive
-          (text style (TextField.extractString txtField)))
+          (text (textStyle conf) (TextField.extractString txtField)))
 
 
-viewType :: TypeModel -> Reactive TypeModel
-viewType (TypeHole Nothing) =
+viewType :: RenderConf -> TypeModel -> Reactive TypeModel
+viewType conf (TypeHole Nothing) =
     Reactive.onEvent eventHandler reactive
   where
     reactive = Reactive.constant (TypeHole Nothing) render
 
-    render = grayPadBorder heavyAsterisk
+    render = renderHole heavyAsterisk
 
     eventHandler =
       Event.mousePress
@@ -152,15 +193,17 @@ viewType (TypeHole Nothing) =
           (TypeHole Nothing)
       ]
 
-viewType (TypeHole (Just list)) =
+viewType conf (TypeHole (Just list)) =
     Reactive.onVisual grayPadBorder reactive
   where
     reactive = (`orElse` (TypeHole (Just list))) <$> suggestionsReactive
 
     suggestionsReactive =
-      Reactive.besidesTo down orTry
-        holeReactive
-        (suggestionListReactive (visual . viewType) list)
+      Reactive.onVisual renderHole
+        (Reactive.besidesTo down orTry
+          holeReactive
+          (suggestionListReactive
+            (visual . viewType (toplevel conf)) list))
 
     holeReactive =
       Reactive.onEvent
@@ -169,22 +212,22 @@ viewType (TypeHole (Just list)) =
             (Event.insideGuard holeReactive (const (Just (TypeHole Nothing))))))
         (Reactive.constant Nothing heavyAsterisk)
 
-viewType (TypeFunc args res) =
-    renderTypeFunc dFont TypeFunc
+viewType conf (TypeFunc args res) =
+    renderTypeFunc conf TypeFunc
       argsReactive
-      (viewType res)
+      (viewType conf res)
   where
-    argsReactive = renderRecordTypes dFont (map viewRecordField args)
+    argsReactive = renderRecordTypes conf (map (viewRecordField conf) args)
 
-viewType (TypeConst typ) =
-    Reactive.constant (TypeConst typ) (renderTypeConst dFont typ)
+viewType conf (TypeConst typ) =
+    Reactive.constant (TypeConst typ) (renderTypeConst conf typ)
 
 
-viewRecordField :: RecordFieldTypeModel -> Reactive RecordFieldTypeModel
-viewRecordField (RecordFieldType typeModel textField) =
-  renderRecordFieldType RecordFieldType
-    (viewType typeModel)
-    (TextField.viewActivatable dFont textField)
+viewRecordField :: RenderConf -> RecordFieldTypeModel -> Reactive RecordFieldTypeModel
+viewRecordField conf (RecordFieldType typeModel textField) =
+  renderRecordFieldType conf RecordFieldType
+    (viewType (deeper conf) typeModel)
+    (TextField.viewActivatable (textStyle conf) textField)
 
 grayPadBorder :: Form -> Form
 grayPadBorder = addBorder gray . padded 4
