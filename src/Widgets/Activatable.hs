@@ -17,6 +17,7 @@ import Linear
 data ActiveOr active inactive
   = Active active
   | InActive inactive
+  deriving (Show, Eq, Read)
 
 view
   :: (act -> inact)

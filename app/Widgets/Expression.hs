@@ -46,24 +46,29 @@ suggestionReactive render value =
 data ExprModel
   = ValueHole TypeModel (Maybe [ExprModel])
   | ValueConst Const
+  deriving (Show, Eq, Read)
 
 data TypeModel
   = TypeConst Type
   | TypeHole (Maybe [TypeModel])
   | TypeFunc [RecordFieldTypeModel] TypeModel
+  deriving (Show, Eq, Read)
 
 data Type
   = IntType
   | BoolType
   | UnitType
+  deriving (Show, Eq, Read)
 
 data Const
   = IntConst Int
   | BoolConst Bool
   | UnitConst ()
+  deriving (Show, Eq, Read)
 
 data RecordFieldTypeModel
   = RecordFieldType TypeModel (ActiveOr TextField String)
+  deriving (Show, Eq, Read)
 
 heavyAsterisk :: Form
 heavyAsterisk =
@@ -98,6 +103,9 @@ deeper conf = conf { groupingDepth = groupingDepth conf + 1 }
 toplevel :: RenderConf -> RenderConf
 toplevel conf = conf { groupingDepth = 0 }
 
+majorColor :: RenderConf -> RGB
+majorColor = textColor . textStyle
+
 
 renderHole :: Form -> Form
 renderHole = addBackground white . padded 2 . grayPadBorder
@@ -130,15 +138,14 @@ renderTypeFunc conf combine argsReactive resReactive =
 renderRecordTypes :: RenderConf -> [Reactive a] -> Reactive [a]
 renderRecordTypes conf reactives =
   Reactive.separatedBy right
-    (gap 10 10)
+    (padded 3 (filled (majorColor conf) (circle 2)))
     (map centeredHV reactives)
 
 renderRecordFieldType :: RenderConf -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
 renderRecordFieldType conf combine typeReactive nameReactive =
-  renderGrouping conf
-    (Reactive.besidesTo down combine
-      (centeredHV typeReactive)
-      (centeredHV nameReactive))
+  separator combine (isTypeOfSeparator (majorColor conf))
+    (centeredHV typeReactive)
+    (centeredHV nameReactive)
 
 renderGrouping :: RenderConf -> Reactive a -> Reactive a
 renderGrouping conf reactive =
@@ -153,7 +160,7 @@ renderGrouping conf reactive =
 
 view :: ExprModel -> Reactive ExprModel
 view (ValueHole typeModel Nothing) =
-    separator ValueHole isTypeOfSeparator
+    separator ValueHole (isTypeOfSeparator black)
       typeReactive
       (Reactive.onEvent onClickHole holeReactive)
   where
@@ -171,8 +178,17 @@ view (ValueHole typeModel Nothing) =
             (const (valueSuggestions typeModel))))
 
 view (ValueHole typeModel (Just list)) =
-    (`orElse` (ValueHole typeModel (Just list))) <$> suggestionsReactive
+  separator combine (isTypeOfSeparator black)
+    typeReactive
+    suggestionsReactive
   where
+    typeReactive = viewType typeRenderConf typeModel
+
+    combine newTypeModel (Just newExpr) = newExpr
+    combine newTypeModel Nothing
+      | newTypeModel == typeModel = ValueHole newTypeModel (Just list)
+      | otherwise                 = ValueHole newTypeModel Nothing
+
     suggestionsReactive =
       Reactive.onVisual renderHole
         (Reactive.besidesTo down orTry
@@ -273,10 +289,10 @@ viewRecordField conf (RecordFieldType typeModel textField) =
 grayPadBorder :: Form -> Form
 grayPadBorder = addBorder gray . padded 4
 
-isTypeOfSeparator :: Double -> Double -> Form
-isTypeOfSeparator spanLeft spanRight =
+isTypeOfSeparator :: RGB -> Double -> Double -> Form
+isTypeOfSeparator color spanLeft spanRight =
     padded 4 $
-      outlined (solid black) $
+      outlined (solid color) $
         Bordered
           (Border.fromBoundingBox (vecLeft, vecRight + sepDir))
           (openPath $

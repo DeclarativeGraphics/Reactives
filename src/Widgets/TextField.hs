@@ -14,7 +14,7 @@ import qualified Event
 import qualified Widgets.Activatable as Activatable
 import Widgets.Activatable (ActiveOr(..))
 
-data TextField = TextField String String
+data TextField = TextField String String deriving (Show, Eq, Read)
 
 construct :: String -> String -> TextField
 construct leftFromCaret rightFromCaret =
