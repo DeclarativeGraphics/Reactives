@@ -45,6 +45,7 @@ suggestionReactive render value =
 
 data ExprModel
   = ValueHole TypeModel (Maybe [ExprModel])
+  | ValueConst Const
 
 data TypeModel
   = TypeConst Type
@@ -55,6 +56,11 @@ data Type
   = IntType
   | BoolType
   | UnitType
+
+data Const
+  = IntConst Int
+  | BoolConst Bool
+  | UnitConst ()
 
 data RecordFieldTypeModel
   = RecordFieldType TypeModel (ActiveOr TextField String)
@@ -95,6 +101,11 @@ toplevel conf = conf { groupingDepth = 0 }
 
 renderHole :: Form -> Form
 renderHole = addBackground white . padded 2 . grayPadBorder
+
+renderConstant :: RenderConf -> Const -> Form
+renderConstant conf (IntConst i) = text (textStyle conf) (show i)
+renderConstant conf (BoolConst b) = text (textStyle conf) (show b)
+renderConstant conf (UnitConst ()) = text (textStyle conf) "()"
 
 renderTypeConst :: RenderConf -> Type -> Form
 renderTypeConst conf typ = text (textStyle conf) (typeConstToString typ)
@@ -144,7 +155,7 @@ view :: ExprModel -> Reactive ExprModel
 view (ValueHole typeModel Nothing) =
     separator ValueHole isTypeOfSeparator
       typeReactive
-      holeReactive
+      (Reactive.onEvent onClickHole holeReactive)
   where
     typeReactive = viewType typeRenderConf typeModel
     holeReactive =
@@ -152,6 +163,32 @@ view (ValueHole typeModel Nothing) =
 
     holeWithTypeIndicatorForm =
       renderHole (renderTypeIndicator exprRenderConf typeModel)
+
+    onClickHole =
+      Event.mousePress
+        (Event.buttonGuard MBLeft
+          (Event.insideGuard holeReactive
+            (const (valueSuggestions typeModel))))
+
+view (ValueHole typeModel (Just list)) =
+    (`orElse` (ValueHole typeModel (Just list))) <$> suggestionsReactive
+  where
+    suggestionsReactive =
+      Reactive.onVisual renderHole
+        (Reactive.besidesTo down orTry
+          holeReactive
+          (suggestionListReactive (visual . view) list))
+
+    holeReactive =
+      Reactive.onEvent
+        (Event.mousePress
+          (Event.buttonGuard MBLeft
+            (Event.insideGuard holeReactive
+              (const (Just (ValueHole typeModel Nothing))))))
+        (Reactive.constant Nothing (renderTypeIndicator exprRenderConf typeModel))
+
+view (ValueConst c) =
+  ValueConst <$> Reactive.fromModel (renderConstant exprRenderConf) c
 
 renderTypeIndicator :: RenderConf -> TypeModel -> Form
 renderTypeIndicator conf (TypeConst typeC) = renderTypeConst conf typeC
@@ -167,6 +204,12 @@ renderTypeIndicator conf (TypeFunc args res) =
         (Reactive.irreactive (renderTypeIndicator (deeper conf) typeModel))
         (Reactive.irreactive
           (text (textStyle conf) (TextField.extractString txtField)))
+
+valueSuggestions :: TypeModel -> Maybe [ExprModel]
+valueSuggestions (TypeConst IntType) = Just $ map (ValueConst . IntConst) [0, 1]
+valueSuggestions (TypeConst BoolType) = Just $ map (ValueConst . BoolConst) [True, False]
+valueSuggestions (TypeConst UnitType) = Just [ValueConst (UnitConst ())]
+valueSuggestions _ = Nothing
 
 
 viewType :: RenderConf -> TypeModel -> Reactive TypeModel
@@ -194,10 +237,8 @@ viewType conf (TypeHole Nothing) =
       ]
 
 viewType conf (TypeHole (Just list)) =
-    Reactive.onVisual grayPadBorder reactive
+    (`orElse` (TypeHole (Just list))) <$> suggestionsReactive
   where
-    reactive = (`orElse` (TypeHole (Just list))) <$> suggestionsReactive
-
     suggestionsReactive =
       Reactive.onVisual renderHole
         (Reactive.besidesTo down orTry
