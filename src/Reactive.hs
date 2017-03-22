@@ -72,6 +72,9 @@ besidesTo dir combine reference toBeMoved =
   Reactive.atopReactives combine reference moved
   where moved = moveBesideBy (displacementTo dir) reference toBeMoved
 
+besidesAll :: V2 Double -> [Reactive a] -> Reactive [a]
+besidesAll dir = atopAllReactives . placedBesidesTo dir
+
 atopAllReactives :: [Reactive a] -> Reactive [a]
 atopAllReactives = foldr (atopReactives (:)) (constant [] empty)
 

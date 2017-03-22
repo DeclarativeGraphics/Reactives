@@ -19,7 +19,14 @@ import FormUtils
 
 import qualified Widgets.Expression as Expression
 import Widgets.Expression (ExprModel(..), TypeModel(..))
+import qualified Widgets.Record as Record
+import Widgets.Record (RecordModelFocused(..), RecordFieldModelFocused(..))
+import Widgets.Activatable (ActiveOr(..))
+import qualified Widgets.TextField as TextField
 
 main :: IO ()
-main = runReactive (move (V2 100 100) . alignHV (0, 0) . Expression.view)
+main = runReactive (move (V2 100 100) . alignHV (0, 0) . Record.viewFocused)
+  (RecordFocused [] (RecordFieldFocused (TextField.construct "Field1" "")) [])
+{-main = runReactive (move (V2 100 100) . alignHV (0, 0) . Expression.view)
   (ValueHole (TypeHole Nothing) Nothing)
+-}
