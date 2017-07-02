@@ -15,7 +15,10 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Reactive, Event, RunReactive, Utils
+  exposed-modules:     Reactive, Event, RunReactive, Utils, Component, RunComponent
+                     , Components.Checkbox
+                     , Components.TextField
+                     , Components.Beside
                      , Widgets.Activatable
                      , Widgets.TextField
   build-depends:       base

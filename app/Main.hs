@@ -22,15 +22,27 @@ import Widgets.Expression (ExprModel(..), TypeModel(..))
 import qualified Widgets.Record as Record
 import Widgets.Record (RecordModelFocused(..), RecordFieldModelFocused(..))
 import Widgets.Activatable (ActiveOr(..))
-import qualified Widgets.TextField as TextField
+--import qualified Widgets.TextField as TextField
 import Widgets.RecordType as RT
 
+import RunComponent
+import Component
+import Components.Checkbox as Checkbox
+import Components.TextField as TextField
+import Components.Beside as Beside
+
 main :: IO ()
-main = runReactive (move (V2 100 100) . alignHV (0, 0) . RT.view)
+main = runComponent (Beside.makeHidden down top bottom)
+  where
+    top = TextField.makeHidden "Hello"
+    bottom = TextField.makeHidden "World"
+--main = runComponent (TextField.make True (TextField.caretAt 10 "Hello, World!"))
+{-main = runReactive (move (V2 100 100) . alignHV (0, 0) . RT.view)
   (RT.TypeModel RT.NumberType
     (RT.InRecordType
       (RT.InRecordType RT.Top [] "pos" [("name", RT.TypeHole)])
       [("x", RT.NumberType)] "y" []))
+-}
 {-main = runReactive (move (V2 100 100) . alignHV (0, 0) . Record.viewFocused)
   (RecordFocused [] (RecordFieldFocused (TextField.construct "Field1" "")) [])
 main = runReactive (move (V2 100 100) . alignHV (0, 0) . Expression.view)

@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
 module RunReactive where
 
 import qualified SDL
@@ -10,7 +10,6 @@ import Graphics.Declarative.Cairo.TangoColors
 import Graphics.Declarative.Cairo.Form
 import Graphics.Declarative.Cairo.Shape
 import Graphics.Declarative.SDL.Input
-import Graphics.Declarative.SDL.Input (waitEventTimeout, ticks)
 import Graphics.Declarative.SDL.Glue
 
 import qualified Reactive
@@ -32,8 +31,10 @@ runReactiveInSDL view initial window renderer = loop (initial, view initial)
         (cairoClear >> drawForm (visual $ snd state))
         window
         renderer
-      (newModel, newReactive) <- workUntil (time + 16) state
-      loop (newModel, newReactive)
+      work <- workUntil (time + 16) state
+      case work of
+        Just (newModel, newReactive) -> loop (newModel, newReactive)
+        Nothing -> return ()
 
     step event (prevModel, prevReactive) =
       let newModel = Reactive.react prevReactive event
@@ -44,10 +45,11 @@ runReactiveInSDL view initial window renderer = loop (initial, view initial)
       time <- ticks
       let timeLeft = fromIntegral stopTime - fromIntegral time :: Int
       if timeLeft <= 0
-        then return state
+        then return (Just state)
         else do
           maybeInput <- waitEventTimeout (fromIntegral timeLeft `div` 2)
           case maybeInput of
+            Just QuitEvent -> return Nothing
             Just input -> do
               newState <- step input state
               workUntil stopTime newState
