@@ -30,12 +30,11 @@ import Component
 import Components.Checkbox as Checkbox
 import Components.TextField as TextField
 import Components.Beside as Beside
+import Components.List as List
+import Components.Record as Record
 
 main :: IO ()
-main = runComponent (Beside.makeHidden down top bottom)
-  where
-    top = TextField.makeHidden "Hello"
-    bottom = TextField.makeHidden "World"
+main = runComponent (Record.make Record.exampleType)
 --main = runComponent (TextField.make True (TextField.caretAt 10 "Hello, World!"))
 {-main = runReactive (move (V2 100 100) . alignHV (0, 0) . RT.view)
   (RT.TypeModel RT.NumberType

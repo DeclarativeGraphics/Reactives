@@ -10,6 +10,7 @@ import Graphics.Declarative.SDL.Input
 import qualified Graphics.Declarative.SDL.Keys as Keys
 import Linear
 import Utils (orElse)
+import FormUtils
 
 import Component
 import qualified Event
@@ -21,7 +22,7 @@ makeHidden text =
 make :: Bool -> TextField -> Component TextField
 make focused value = Component
     { dispatch = make focused . nextState
-    , render = render
+    , render = (if focused then addBorder blue else id) render
     , value = value
     , focusEvent = \newFocus -> make newFocus value
     , focused = focused
@@ -58,7 +59,7 @@ renderWithCaret textStyle tf@(TextField leftFromCaret rightFromCaret) =
   where
     textUntilCaret = text textStyle (reverse leftFromCaret)
     caretHeight = graphicHeight (text textStyle "|")
-    caret = filled black (rectangle (caretHeight*0.05) caretHeight)
+    caret = filled black (rectangle (caretHeight * 0.05) caretHeight)
 
 moveCaretToPixel :: Double -> TextField -> TextField
 moveCaretToPixel pixelX textField

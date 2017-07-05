@@ -24,7 +24,7 @@ make dir focused beside = Component
     { dispatch = make dir focused . nextValue
     , render = appendTo dir [render (leftBeside beside), render (rightBeside beside)]
     , value = mapBeside value value beside
-    , focusEvent = \newFocus -> make dir newFocus beside
+    , focusEvent = \newFocus -> make dir newFocus ((if not newFocus then focusNeither else id) beside)
     , focused = focused
     }
   where
