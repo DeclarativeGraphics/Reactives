@@ -22,4 +22,4 @@ import qualified Widgets.Type as Type
 
 main :: IO ()
 main =
-  runReactive (move (V2 200 200) . Type.view) Type.example
+  runReactive (move (V2 200 200) . Type.view . Type.inputValidation) Type.example

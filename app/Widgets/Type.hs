@@ -25,7 +25,12 @@ data Model -- for types
   | Var TextField.Model
   deriving (Show, Eq)
 
-type Association = (TextField.Model, Model, Bool)
+data Association
+  = Association
+  { associationTextField :: TextField.Model
+  , associationValue :: Model
+  , associationInvalid :: Bool
+  } deriving (Show, Eq)
 
 monoStyle :: TextStyle
 monoStyle = defaultTextStyle { fontFamily = "monospace" }
@@ -45,7 +50,7 @@ example
 
 record :: [(String, Model)] -> Model
 record = flip Record Button.construct . map makeModel
-  where makeModel (str, model) = ( TextField.inactive str, model, False)
+  where makeModel (str, model) = Association (TextField.inactive str) model False
 
 var :: String -> Model
 var = Var . TextField.inactive
@@ -58,7 +63,7 @@ view (Record associations buttonModel) =
       (viewAssociations associations)
       (alignHV (0, 0) (Button.view (text monoStyle "+") buttonModel))
   where
-    placeholderAssoc = (TextField.emptyInactive, Var TextField.emptyActive, False)
+    placeholderAssoc = Association TextField.emptyInactive (Var TextField.emptyActive) False
     handleAddAssociation :: [Association] -> (Button.Model, Button.Event) -> Model
     handleAddAssociation associations (buttonModel, buttonClicked)
       | buttonClicked = Record (associations ++ [placeholderAssoc]) buttonModel
@@ -69,10 +74,10 @@ viewAssociations associations =
     Reactive.besidesAll down (map viewAssociation associations)
 
 viewAssociation :: Association -> Reactive Association
-viewAssociation (textField, typ, isInvalid) =
-    attachValidity <$> Reactive.besidesTo right (,) nameReactive (view typ)
+viewAssociation (Association textField typ isInvalid) =
+    makeAssociation <$> Reactive.besidesTo right (,) nameReactive (view typ)
   where
-    attachValidity (x, y) = (x, y, isInvalid)
+    makeAssociation (textField, typ) = Association textField typ isInvalid
     possiblyAddBorder =
       if isInvalid then addBorder red else id
     nameReactive =
@@ -80,3 +85,25 @@ viewAssociation (textField, typ, isInvalid) =
         (text monoStyle ": ")
         (Reactive.onVisual (possiblyAddBorder . padded 2)
           (TextField.view monoStyle "field name" textField))
+
+
+inputValidation :: Model -> Model
+inputValidation (Var textField) = Var textField
+inputValidation (Record associations button) =
+    Record (checkAssociations associations) button
+
+checkAssociations :: [Association] -> [Association]
+checkAssociations assocs =
+    map checkAssociation assocs
+  where
+    checkAssociation association =
+        Association
+          { associationTextField = associationTextField association
+          , associationValue = inputValidation (associationValue association)
+          , associationInvalid = nameAlreadyExists
+          }
+      where
+        associationName = TextField.getContent (associationTextField association)
+        nameAlreadyExists = length (filter (== associationName) existingNames) > 1
+
+    existingNames = map (TextField.getContent . associationTextField) assocs
