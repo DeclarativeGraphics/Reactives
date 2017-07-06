@@ -14,6 +14,9 @@ mouseInput _ _ = id
 mousePress :: (MB -> V2 Double -> a -> a) -> (Input -> a -> a)
 mousePress = mouseInput . mousePressGuard
 
+mouseRelease :: (MB -> V2 Double -> a -> a) -> (Input -> a -> a)
+mouseRelease = mouseInput . mouseReleaseGuard
+
 mouseMove :: (V2 Double -> a -> a) -> (Input -> a -> a)
 mouseMove = mouseInput . mouseMoveGuard
 
@@ -33,6 +36,10 @@ textInput _ _ = id
 mousePressGuard :: (MB -> V2 Double -> a -> a) -> (MouseInput -> a -> a)
 mousePressGuard changeModel (MousePress pos button) = changeModel button pos
 mousePressGuard _ _ = id
+
+mouseReleaseGuard :: (MB -> V2 Double -> a -> a) -> (MouseInput -> a -> a)
+mouseReleaseGuard changeModel (MouseRelease pos button) = changeModel button pos
+mouseReleaseGuard _ _ = id
 
 buttonGuard :: MB -> (V2 Double -> a -> a) -> (MB -> V2 Double -> a -> a)
 buttonGuard shouldButton changeModel actualButton
