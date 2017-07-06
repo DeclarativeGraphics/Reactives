@@ -28,6 +28,9 @@ irreactive form = Reactive
   , visual = form
   }
 
+emptyR :: a -> Reactive a
+emptyR value = constant value empty
+
 constant :: a -> Form -> Reactive a
 constant value form = pure value <* irreactive form
 
@@ -71,6 +74,10 @@ besidesTo :: V2 Double -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive 
 besidesTo dir combine reference toBeMoved =
   Reactive.atopReactives combine reference moved
   where moved = moveBesideBy (displacementTo dir) reference toBeMoved
+
+-- kinda like <*>, but with a flowing direction (V2 Double)
+attach :: V2 Double -> Reactive (a -> b) -> Reactive a -> Reactive b
+attach dir = besidesTo dir ($)
 
 besidesAll :: V2 Double -> [Reactive a] -> Reactive [a]
 besidesAll dir = atopAllReactives . placedBesidesTo dir

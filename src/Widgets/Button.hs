@@ -43,5 +43,7 @@ view buttonIcon active =
 render :: Form -> Model -> Form
 render buttonIcon active =
   (if active then addBackground lightGrey else id)
-    (addBorder lightBlue
-      (padded 4 buttonIcon))
+    (addBorder lightBlue buttonIcon)
+
+isActive :: Model -> Bool
+isActive = id

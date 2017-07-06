@@ -21,7 +21,7 @@ import qualified Widgets.TextField as TextField
 import qualified Widgets.Button as Button
 
 data Model -- for types
-  = Record [Association] Button.Model
+  = Record [Association]
   | Var TextField.Model
   deriving (Show, Eq)
 
@@ -29,8 +29,11 @@ data Association
   = Association
   { associationTextField :: TextField.Model
   , associationValue :: Model
-  , associationInvalid :: Bool
+  , associationAddButton :: Button.Model
+  , associationErrors :: [Error]
   } deriving (Show, Eq)
+
+type Error = String
 
 monoStyle :: TextStyle
 monoStyle = defaultTextStyle { fontFamily = "monospace" }
@@ -49,58 +52,93 @@ example
   ]
 
 record :: [(String, Model)] -> Model
-record = flip Record Button.construct . map makeModel
-  where makeModel (str, model) = Association (TextField.inactive str) model False
+record = Record . map makeModel
+  where makeModel (str, model) = Association (TextField.inactive str) model Button.construct []
 
 var :: String -> Model
 var = Var . TextField.inactive
 
+newAssociation :: Association
+newAssociation =
+  Association
+    { associationTextField = TextField.emptyActive
+    , associationValue = (Var TextField.emptyInactive)
+    , associationAddButton = Button.construct
+    , associationErrors = []
+    }
+
 
 view :: Model -> Reactive Model
 view (Var textField) = Var <$> TextField.view monoStyle "variable" textField
-view (Record associations buttonModel) =
-    Reactive.besidesTo down handleAddAssociation
-      (viewAssociations associations)
-      (alignHV (0, 0) (Button.view (text monoStyle "+") buttonModel))
-  where
-    placeholderAssoc = Association TextField.emptyInactive (Var TextField.emptyActive) False
-    handleAddAssociation :: [Association] -> (Button.Model, Button.Event) -> Model
-    handleAddAssociation associations (buttonModel, buttonClicked)
-      | buttonClicked = Record (associations ++ [placeholderAssoc]) buttonModel
-      | otherwise     = Record associations buttonModel
+view (Record associations) = Record <$> viewAssociations associations
 
 viewAssociations :: [Association] -> Reactive [Association]
 viewAssociations associations =
-    Reactive.besidesAll down (map viewAssociation associations)
+    concat <$> Reactive.besidesAll down (map viewAssociation associations)
 
-viewAssociation :: Association -> Reactive Association
-viewAssociation (Association textField typ isInvalid) =
-    makeAssociation <$> Reactive.besidesTo right (,) nameReactive (view typ)
+viewAssociation :: Association -> Reactive [Association]
+viewAssociation (Association textField typ button errors) =
+      (makeAssociation <$> nameReactive)
+      `attachRight` (view typ)
+      `attachRight` buttonReactive
+      `attachDown` (viewErrors isAssociationActive errors)
   where
-    makeAssociation (textField, typ) = Association textField typ isInvalid
+    isAssociationActive =
+      TextField.isActive textField || Button.isActive button
+
+    makeAssociation textField typ (button, buttonClicked) errors =
+      possiblyAddAssociation buttonClicked
+        (Association textField typ button errors)
+
+    possiblyAddAssociation buttonClicked assoc
+      | buttonClicked = [assoc, newAssociation]
+      | otherwise = [assoc]
+
+    addButton =
+      alignHV (0, 0)
+        (Reactive.attachFormTo left
+          (gap 4 0)
+          (Button.view (text monoStyle " + ") button))
+
+    buttonReactive =
+      if isAssociationActive
+        then addButton
+        else Reactive.emptyR (button, False)
+
+    attachRight = Reactive.attach right
+    attachDown = Reactive.attach down
+
     possiblyAddBorder =
-      if isInvalid then addBorder red else id
+      if not (null errors) then addBorder red else id
+
     nameReactive =
       Reactive.attachFormTo right
         (text monoStyle ": ")
         (Reactive.onVisual (possiblyAddBorder . padded 2)
           (TextField.view monoStyle "field name" textField))
 
+viewErrors :: Bool -> [Error] -> Reactive [Error]
+viewErrors _ [] = Reactive.emptyR []
+viewErrors False errors = Reactive.emptyR errors
+viewErrors True errors =
+  Reactive.constant errors
+    (appendTo down (map (padded 3 . addBackground red . padded 1 . text style) errors))
+  where
+    style = defaultTextStyle { textColor = lightGrey, fontFamily = "monospace", fontSize = 10 }
 
 inputValidation :: Model -> Model
 inputValidation (Var textField) = Var textField
-inputValidation (Record associations button) =
-    Record (checkAssociations associations) button
+inputValidation (Record associations) =
+    Record (checkAssociations associations)
 
 checkAssociations :: [Association] -> [Association]
 checkAssociations assocs =
     map checkAssociation assocs
   where
     checkAssociation association =
-        Association
-          { associationTextField = associationTextField association
-          , associationValue = inputValidation (associationValue association)
-          , associationInvalid = nameAlreadyExists
+        association
+          { associationValue = inputValidation (associationValue association)
+          , associationErrors = if nameAlreadyExists then ["Duplicate name"] else []
           }
       where
         associationName = TextField.getContent (associationTextField association)
