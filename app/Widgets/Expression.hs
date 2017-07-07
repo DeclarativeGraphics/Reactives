@@ -26,13 +26,13 @@ import qualified Widgets.Record as Record
 import qualified Backend
 
 data Model
-  = Hole --(DropDownList.Model Model)
+  = Hole (DropDownList.Model Model)
   | App Model Model
   | Abs (Record.Model Type.Model) Model
   deriving (Show, Eq)
 
 example :: Model
-example = App (Abs (Record.construct [("", Type.hole)]) Hole) Hole
+example = App (lam hole) hole
 
 monoStyle :: TextStyle
 monoStyle = defaultTextStyle { fontFamily = "monospace" }
@@ -48,8 +48,29 @@ noParametersError =
   where
     style = (Record.textStyle recordSettings) { textColor = lightGrey, fontSize = 10 }
 
+hole :: Model
+hole = Hole DropDownList.construct
+
+lam :: Model -> Model
+lam body = Abs (Record.construct [("", Type.hole)]) body
+
+holeOptions :: [Model]
+holeOptions = [App hole hole, lam hole]
+
+holeSettings :: DropDownList.Settings Model
+holeSettings = DropDownList.Settings
+  { DropDownList.textStyle = Record.textStyle recordSettings
+  , DropDownList.buttonText = "<hole>"
+  , DropDownList.dropDownText = "Choose Expression:"
+  , DropDownList.renderModel = Reactive.visual . view
+  }
+
 view :: Model -> Reactive Model
-view Hole = Reactive.constant Hole renderHole
+view (Hole dropDownListModel) =
+    handleEvent <$> DropDownList.view holeSettings holeOptions dropDownListModel
+  where
+    handleEvent (Left dropDownListModel) = Hole dropDownListModel
+    handleEvent (Right model) = model
 view (App functionModel argumentModel) =
     alignHV (0, 0)
       (App

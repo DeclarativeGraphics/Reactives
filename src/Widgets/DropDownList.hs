@@ -38,17 +38,25 @@ data OptionWithEvent a
   , optionWithoutEvent :: Option a
   } deriving (Show, Eq)
 
+data Settings a
+  = Settings
+  { textStyle :: TextStyle
+  , buttonText :: String
+  , dropDownText :: String
+  , renderModel :: a -> Form
+  }
+
 construct :: Model a
 construct = OpenDropDown Button.construct
 
-view :: TextStyle -> String -> String -> (a -> Form) -> [a] -> Model a -> Reactive (Either (Model a) a)
-view style buttonText _ renderModel models (OpenDropDown button) =
-    Left <$> handleClick <$> Button.view (renderButton style buttonText) button
+view :: Settings a -> [a] -> Model a -> Reactive (Either (Model a) a)
+view settings models (OpenDropDown button) =
+    Left <$> handleClick <$> Button.view (renderButton settings) button
   where
     handleClick (buttonModel, buttonClicked)
       | buttonClicked = DropDownList (map (Option Button.construct) models)
       | otherwise     = OpenDropDown buttonModel
-view style _ dropDownText renderModel _ (DropDownList options) =
+view settings _ (DropDownList options) =
     Reactive.onEvent
       (Event.mousePress
         (Event.buttonGuard MBLeft
@@ -61,10 +69,9 @@ view style _ dropDownText renderModel _ (DropDownList options) =
 
     reactive =
       Reactive.attachFormTo up
-        (text style dropDownText)
+        (text (textStyle settings) (dropDownText settings))
         buttonsViewed
 
-    --buttonsViewed :: Reactive (Either (Model a) a)
     buttonsViewed =
       handleModelChange <$>
         Button.handleButtonList optionEvent <$>
@@ -73,14 +80,19 @@ view style _ dropDownText renderModel _ (DropDownList options) =
     handleModelChange (optionsWithEvent, Just clickedOption) = Right (optionResult (optionWithoutEvent clickedOption))
     handleModelChange (optionsWithEvent, Nothing) = Left (DropDownList (map optionWithoutEvent optionsWithEvent))
 
+    attachBulletPoint form =
+      alignHV (0, 0)
+        (appendTo left [ alignHV (0, 0.5) form, alignHV (0, 0.5) (text (textStyle settings) "•") ])
+
     viewButton option =
       makeOptionWithEvent option <$>
-        (Button.view
-          (padded 4 (renderModel (optionResult option)))
-          (optionButton option))
+          (Button.view
+            (attachBulletPoint (padded 4 (renderModel settings (optionResult option))))
+            (optionButton option))
 
     makeOptionWithEvent option (button, buttonEvent) =
       OptionWithEvent buttonEvent (option { optionButton = button })
 
-renderButton :: TextStyle -> String -> Form
-renderButton style = padded 4 . text style { textColor = darkGrey, fontSize = 10 }
+renderButton :: Settings a -> Form
+renderButton settings =
+    padded 4 (text ((textStyle settings) { textColor = darkGrey, fontSize = 10 }) (buttonText settings))

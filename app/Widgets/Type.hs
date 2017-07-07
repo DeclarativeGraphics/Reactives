@@ -83,19 +83,21 @@ view typeEnv (Hole dropDownList) = viewHole typeEnv dropDownList
 
 
 
+holeDropDownListSettings :: Backend.TypeEnv -> DropDownList.Settings Model
+holeDropDownListSettings typeEnv = DropDownList.Settings
+  { DropDownList.textStyle = monoStyle
+  , DropDownList.buttonText = "Choose type..."
+  , DropDownList.dropDownText = "Choose type:"
+  , DropDownList.renderModel = Reactive.visual . view typeEnv
+  }
 
 viewHole :: Backend.TypeEnv -> DropDownList.Model Model -> Reactive Model
 viewHole typeEnv dropDownListModel =
     handleEvents <$>
       DropDownList.view
-        monoStyle
-        "Choose type..."
-        "Choose type:"
-        renderModel
+        (holeDropDownListSettings typeEnv)
         (calculateOptions typeEnv)
         dropDownListModel
   where
     handleEvents (Left dropDownListModel) = Hole dropDownListModel
     handleEvents (Right model) = model
-
-    renderModel model = Reactive.visual (view typeEnv model)
