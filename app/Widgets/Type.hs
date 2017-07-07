@@ -27,8 +27,9 @@ import qualified Backend
 
 data Model -- for types
   = RecordType (Record.Model Model)
-  | Var TextField.Model
+  | TypeReference String
   | Hole (DropDownList.Model Model)
+  | Arrow Model Model
   deriving (Show, Eq)
 
 monoStyle :: TextStyle
@@ -46,12 +47,12 @@ recordSettings typeEnv = Record.Settings
 example :: Model
 example
   = record
-  [ ( "key", var "value" )
+  [ ( "key", ref "value" )
   , ( "record"
     , record
-      [ ( "nested", var "records" )
-      , ( "mutliple", var "fields" )
-      , ( "all good are", var "3" )
+      [ ( "nested", ref "records" )
+      , ( "mutliple", ref "fields" )
+      , ( "all good are", ref "3" )
       , ( "holes are this", hole )
       ]
     )
@@ -60,26 +61,38 @@ example
 record :: [(String, Model)] -> Model
 record = RecordType . Record.construct
 
-var :: String -> Model
-var = Var . TextField.inactive
+ref :: String -> Model
+ref = TypeReference
 
 hole :: Model
 hole = Hole DropDownList.construct
 
 
 typeToModel :: Backend.Type -> Model
-typeToModel Backend.Nat = var "Nat"
+typeToModel Backend.Nat = ref "Nat"
 
 
 calculateOptions :: Backend.TypeEnv -> [Model]
 calculateOptions typeEnv =
-  [RecordType Record.empty] ++ map typeToModel (Map.elems typeEnv)
+  [ RecordType Record.empty
+  , Arrow hole hole
+  ] ++ map typeToModel (Map.elems typeEnv)
 
 
 view :: Backend.TypeEnv -> Model -> Reactive Model
-view typeEnv (Var textField) = Var <$> TextField.view monoStyle "type variable" textField
+view typeEnv (TypeReference name) = Reactive.constant (TypeReference name) (text monoStyle name)
 view typeEnv (RecordType record) = RecordType <$> Record.view (recordSettings typeEnv) record
 view typeEnv (Hole dropDownList) = viewHole typeEnv dropDownList
+view typeEnv (Arrow argumentType resultType) =
+    alignHV (0, 0)
+      (Arrow
+        <$> attachArrow (alignHV (0, 0.5) (view typeEnv argumentType))
+        `Reactive.attachRight` (alignHV (0, 0.5) (view typeEnv resultType)))
+  where
+    attachArrow =
+      Reactive.attachFormTo right
+        (alignHV (0, 0.5)
+          (text monoStyle { textColor = blue } " → "))
 
 
 

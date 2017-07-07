@@ -89,15 +89,12 @@ view (Abs parametersRecord bodyModel) =
     parametersReactive =
       Reactive.attachFormTo down (gap 0 4)
         (Reactive.attachFormTo left
-          (appendTo right [ alignHV (0, 1) (text monoStyle "λ"), gap 8 0 ])
+          (appendTo right [ alignHV (0, 1) (text monoStyle { textColor = blue } "λ"), gap 8 0 ])
           (alignHV (0, 1) (Record.view recordSettings parametersRecord)))
     bodyReactive =
       Reactive.attachFormTo left
-        (appendTo right [ text monoStyle "→", gap 6 0 ])
+        (appendTo right [ text monoStyle { textColor = blue } "→", gap 6 0 ])
         (alignHV (0, 0) (view bodyModel))
-
-renderHole :: Form
-renderHole = addBorder grey (padded 2 (text monoStyle { textColor = grey } "?value?"))
 
 applicationArrow :: Form
 applicationArrow =
