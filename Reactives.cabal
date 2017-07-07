@@ -19,10 +19,12 @@ library
                      , Widgets.Activatable
                      , Widgets.TextField
                      , Widgets.Button
+                     , Widgets.DropDownList
   build-depends:       base
                      , sdl2
                      , linear
                      , recursion-schemes
+                     , containers
                      , OneFileLens
                      , DeclarativeGraphics
                      , DeclarativeGraphics-Cairo
@@ -32,10 +34,14 @@ library
 executable Reactives-exe
   hs-source-dirs:      app
   other-modules:       Widgets.Type
+                     , Widgets.Expression
+                     , Widgets.Record
+                     , Backend
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , linear
+                     , containers
                      , recursion-schemes
                      , DeclarativeGraphics
                      , DeclarativeGraphics-Cairo

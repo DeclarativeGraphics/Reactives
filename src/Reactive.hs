@@ -75,12 +75,23 @@ besidesTo dir combine reference toBeMoved =
   Reactive.atopReactives combine reference moved
   where moved = moveBesideBy (displacementTo dir) reference toBeMoved
 
+besidesAll :: V2 Double -> [Reactive a] -> Reactive [a]
+besidesAll dir = atopAllReactives . placedBesidesTo dir
+
 -- kinda like <*>, but with a flowing direction (V2 Double)
 attach :: V2 Double -> Reactive (a -> b) -> Reactive a -> Reactive b
 attach dir = besidesTo dir ($)
 
-besidesAll :: V2 Double -> [Reactive a] -> Reactive [a]
-besidesAll dir = atopAllReactives . placedBesidesTo dir
+attachLeft, attachRight, attachUp, attachDown :: Reactive (a -> b) -> Reactive a -> Reactive b
+attachLeft = attach left
+attachRight = attach right
+attachUp = attach up
+attachDown = attach down
+
+infixl 4 `attachLeft`
+infixl 4 `attachRight`
+infixl 4 `attachUp`
+infixl 4 `attachDown`
 
 atopAllReactives :: [Reactive a] -> Reactive [a]
 atopAllReactives = foldr (atopReactives (:)) (constant [] empty)

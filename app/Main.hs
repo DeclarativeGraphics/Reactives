@@ -19,7 +19,12 @@ import FormUtils
 
 import qualified Widgets.TextField as TextField
 import qualified Widgets.Type as Type
+import qualified Widgets.Expression as Expression
+import qualified Widgets.Record as Record
+
+import qualified Backend
 
 main :: IO ()
 main =
-  runReactive (move (V2 200 200) . Type.view . Type.inputValidation) Type.example
+  runReactive (move (V2 200 200) . Expression.view) Expression.example
+  --runReactive (move (V2 200 200) . Type.view Backend.stdTypeEnv) Type.example

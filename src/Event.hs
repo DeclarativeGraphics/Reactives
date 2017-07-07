@@ -51,6 +51,12 @@ insideGuard bordered changeModel pos model
   | isInside bordered pos = changeModel model
   | otherwise             = model
 
+outsideGuard :: HasBorder b => b -> (a -> a) -> (V2 Double -> a -> a)
+outsideGuard bordered changeModel pos model
+  | isInside bordered pos = model
+  | otherwise             = changeModel model
+
+
 mouseMoveGuard :: (V2 Double -> a -> a) -> (MouseInput -> a -> a)
 mouseMoveGuard changeModel (MouseMove pos) = changeModel pos
 mouseMoveGuard _ _ = id
