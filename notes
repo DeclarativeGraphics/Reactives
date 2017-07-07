@@ -7,6 +7,8 @@ and then the name is only used once in a case expr, unlike in haskell,
 where you can already do a case on the left of a = of a func.
 In haskell there is now 2 ways of doing the same thing though, and I
 don't like that.
+[How can you specify parameter types and pattern match them at the
+same time?]
 
   There is no variable indexing by STRINGS anymore! Either it's
 de-brujin indices or its a global index (I'm all the way for
