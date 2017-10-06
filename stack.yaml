@@ -6,4 +6,4 @@ packages:
 - '../DeclarativeGraphics-SDL'
 - '../OneFileLens'
 extra-deps: []
-resolver: lts-8.21
+resolver: lts-9.6
