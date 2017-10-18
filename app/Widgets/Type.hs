@@ -70,12 +70,13 @@ hole = Hole DropDownList.construct
 
 typeToModel :: Backend.Type -> Model
 typeToModel Backend.Nat = ref "Nat"
+typeToModel (Backend.RecordType r) =
+    record (Map.assocs (Map.map typeToModel r))
 
 
 calculateOptions :: Backend.TypeEnv -> [Model]
 calculateOptions typeEnv =
-  [ RecordType Record.empty
-  , Arrow hole hole
+  [ Arrow hole hole
   ] ++ map typeToModel (Map.elems typeEnv)
 
 

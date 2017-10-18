@@ -44,7 +44,7 @@ recordSettings = (Type.recordSettings Backend.stdTypeEnv)
 
 noParametersError :: Form
 noParametersError =
-  padded 4 (addBackground red (text style "No Parameters"))
+    padded 4 (addBackground red (text style "No Parameters"))
   where
     style = (Record.textStyle recordSettings) { textColor = lightGrey, fontSize = 10 }
 
