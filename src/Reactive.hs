@@ -14,33 +14,33 @@ import Control.Monad (join, liftM2)
 
 import Linear
 
-data Reactive msg
+data Reactive event msg
   = Reactive
-  { react :: Input -> msg
+  { react :: event -> msg
   , visual :: Form
   }
 
 type Pos = (Double, Double)
 
-irreactive :: Form -> Reactive ()
+irreactive :: Form -> Reactive e ()
 irreactive form = Reactive
   { react = const ()
   , visual = form
   }
 
-constant :: a -> Form -> Reactive a
+constant :: a -> Form -> Reactive e a
 constant value form = pure value <* irreactive form
 
-fromModel :: (a -> Form) -> a -> Reactive a
+fromModel :: (a -> Form) -> a -> Reactive e a
 fromModel produceForm model = pure model <* irreactive (produceForm model)
 
-onEvent :: (Input -> b -> a) -> Reactive b -> Reactive a
+onEvent :: (e -> b -> a) -> Reactive e b -> Reactive e a
 onEvent eventHandler reactive =
     Reactive reaction (visual reactive)
   where
     reaction event = eventHandler event (react reactive event)
 
-wrapFilterOutsideEvents :: (m -> Reactive m) -> m -> Reactive m
+wrapFilterOutsideEvents :: (m -> Reactive Input m) -> m -> Reactive Input m
 wrapFilterOutsideEvents view model =
     Reactive.onEvent handleEvent innerReactive
   where
@@ -53,67 +53,62 @@ eventInside :: HasBorder a => a -> Input -> Bool
 eventInside sth (MouseInput m) = isInside sth (get mouseInputPos m)
 eventInside sth _ = True
 
-atopReactives :: (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
+atopReactives :: (a -> b -> c) -> Reactive e a -> Reactive e b -> Reactive e c
 atopReactives combine reactiveA reactiveB =
     Reactive reaction (atop (visual reactiveA) (visual reactiveB))
   where
     reaction event = combine (react reactiveA event) (react reactiveB event)
 
 -- Place some Form beside a reactive
-attachFormTo :: V2 Double -> Form -> Reactive a -> Reactive a
+attachFormTo :: Transformable e => V2 Double -> Form -> Reactive e a -> Reactive e a
 attachFormTo dir attachment reactive = reactive <* movedIrreactive
   where
     movedIrreactive =
       moveBesideBy (displacementTo dir) reactive $
         Reactive.irreactive attachment
 
-besidesTo :: V2 Double -> (a -> b -> c) -> Reactive a -> Reactive b -> Reactive c
+besidesTo :: Transformable e => V2 Double -> (a -> b -> c) -> Reactive e a -> Reactive e b -> Reactive e c
 besidesTo dir combine reference toBeMoved =
   Reactive.atopReactives combine reference moved
   where moved = moveBesideBy (displacementTo dir) reference toBeMoved
 
-besidesAll :: V2 Double -> [Reactive a] -> Reactive [a]
+besidesAll :: Transformable e => V2 Double -> [Reactive e a] -> Reactive e [a]
 besidesAll dir = atopAllReactives . placedBesidesTo dir
 
-atopAllReactives :: [Reactive a] -> Reactive [a]
+atopAllReactives :: [Reactive e a] -> Reactive e [a]
 atopAllReactives = foldr (atopReactives (:)) (constant [] empty)
 
-separatedBy :: V2 Double -> Form -> [Reactive a] -> Reactive [a]
+separatedBy :: Transformable e => V2 Double -> Form -> [Reactive e a] -> Reactive e [a]
 separatedBy dir seperator [] = constant [] empty
 separatedBy dir seperator (x:xs) =
     atopAllReactives (placedBesidesTo dir withSeperators)
   where
     withSeperators = x : map (attachFormTo (-dir) seperator) xs
 
-onVisual :: (Form -> Form) -> Reactive a -> Reactive a
+onVisual :: (Form -> Form) -> Reactive e a -> Reactive e a
 onVisual change reactive = reactive { visual = change (visual reactive) }
 
-modifyEventPositions :: M33 Double -> Reactive a -> Reactive a
+modifyEventPositions :: Transformable e => M33 Double -> Reactive e a -> Reactive e a
 modifyEventPositions matrix reactive =
-    reactive { react = react reactive . offsetEvent }
-  where
-    transformPos (V2 x y) = toV2 $ matrix !* V3 x y 1
-    offsetEvent (MouseInput m) =
-      MouseInput $ modify mouseInputPos transformPos m
-    offsetEvent e = e
+    reactive { react = react reactive . transformBy matrix }
 
-instance Functor Reactive where
+instance Functor (Reactive e) where
   fmap f (Reactive reaction visual) = Reactive (f . reaction) visual
 
-instance Applicative Reactive where
+instance Applicative (Reactive e) where
   pure value = Reactive (const value) empty
 
   (Reactive reactFunc visual1) <*> (Reactive reactArg visual2)
     = Reactive react (atop visual1 visual2)
     where react event = reactFunc event (reactArg event)
 
-instance Transformable (Reactive a) where
+instance Transformable e => Transformable (Reactive e a) where
   transformBy mat reactive =
     onVisual (transformBy mat) $ modifyEventPositions (inv33 mat) reactive
 
-instance HasBorder (Reactive a) where
+instance HasBorder (Reactive e a) where
   getBorder = getBorder . visual
 
-instance Monoid a => Combinable (Reactive a) where
+instance Monoid a => Combinable (Reactive e a) where
   empty = Reactive.constant mempty empty
   reactiveA `atop` reactiveB = atopReactives mappend reactiveA reactiveB
