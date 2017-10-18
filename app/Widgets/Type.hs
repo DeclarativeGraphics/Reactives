@@ -1,4 +1,4 @@
-module Widgets.Type where
+ module Widgets.Type where
 
 import Graphics.Declarative.Classes
 import Graphics.Declarative.Bordered
@@ -51,7 +51,7 @@ var :: String -> Model
 var = Var . TextField.inactive
 
 
-view :: Model -> Reactive Model
+view :: Model -> Reactive Input Model
 view (Var textField) = Var <$> TextField.view monoStyle "variable" textField
 view (Record associations buttonModel) =
     Reactive.besidesTo down handleAddAssociation
@@ -64,11 +64,11 @@ view (Record associations buttonModel) =
       | buttonClicked = Record (associations ++ [placeholderAssoc]) buttonModel
       | otherwise     = Record associations buttonModel
 
-viewAssociations :: [Association] -> Reactive [Association]
+viewAssociations :: [Association] -> Reactive Input [Association]
 viewAssociations associations =
     Reactive.besidesAll down (map viewAssociation associations)
 
-viewAssociation :: Association -> Reactive Association
+viewAssociation :: Association -> Reactive Input Association
 viewAssociation (textField, typ, isInvalid) =
     attachValidity <$> Reactive.besidesTo right (,) nameReactive (view typ)
   where

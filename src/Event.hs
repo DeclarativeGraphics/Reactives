@@ -68,5 +68,5 @@ keyGuard shouldKey changeModel actualKey
 handleAfter :: (Input -> b -> c) -> (Input -> a -> b) -> (Input -> a -> c)
 handleAfter = liftM2 (.)
 
-handleChain :: [(Input -> a -> a)] -> (Input -> a -> a)
+handleChain :: [Input -> a -> a] -> (Input -> a -> a)
 handleChain = foldr handleAfter (const id)

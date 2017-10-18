@@ -22,10 +22,10 @@ data ActiveOr active inactive
 view
   :: (act -> inact)
   -> (V2 Double -> inact -> act)
-  -> (act -> Reactive act)
-  -> (inact -> Reactive inact)
+  -> (act -> Reactive Input act)
+  -> (inact -> Reactive Input inact)
   -> ActiveOr act inact
-  -> Reactive (ActiveOr act inact)
+  -> Reactive Input (ActiveOr act inact)
 view makeInactive makeActive viewActive viewInactive activeOr =
   case activeOr of
     (Active active) ->

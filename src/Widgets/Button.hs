@@ -21,7 +21,7 @@ type Event = Bool
 construct :: Model
 construct = False
 
-view :: Form -> Model -> Reactive (Model, Event)
+view :: Form -> Model -> Reactive Input (Model, Event)
 view buttonIcon active =
     Reactive.onEvent
       (mouseAction (Event.buttonGuard MBLeft handleMouse))

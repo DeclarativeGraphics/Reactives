@@ -22,7 +22,7 @@ shapeFromForm :: Form -> Bordered Shape
 shapeFromForm form =
   rectangleFromBB (Border.getBoundingBox (getBorder form))
 
-separator :: (a -> b -> c) -> (Double -> Double -> Form) -> Reactive a -> Reactive b -> Reactive c
+separator :: Transformable e => (a -> b -> c) -> (Double -> Double -> Form) -> Reactive e a -> Reactive e b -> Reactive e c
 separator combine separatorFromDists reactiveA reactiveB =
     Reactive.besidesTo down combine
       (Reactive.attachFormTo down (separatorFromDists maxLeft maxRight) reactiveA)
@@ -32,7 +32,7 @@ separator combine separatorFromDists reactiveA reactiveB =
     maxLeft = max (bd left reactiveA) (bd left reactiveB)
     maxRight = max (bd right reactiveA) (bd right reactiveB)
 
-withParens :: TextStyle -> Reactive a -> Reactive a
+withParens :: Transformable e => TextStyle -> Reactive e a -> Reactive e a
 withParens style reactive =
   Reactive.attachFormTo left (text style "(") $
   Reactive.attachFormTo right (text style ")")

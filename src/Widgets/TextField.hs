@@ -65,7 +65,7 @@ write str (TextField left right) = TextField (reverse str ++ left) right
 toString :: TextField -> String
 toString (TextField left right) = reverse left ++ right
 
-viewTextField :: TextStyle -> String -> TextField -> Reactive TextField
+viewTextField :: TextStyle -> String -> TextField -> Reactive Input TextField
 viewTextField textStyle placeholder =
     Reactive.onEvent eventHandler
   . Reactive.fromModel (render textStyle placeholder)
@@ -105,7 +105,7 @@ renderStatic :: TextStyle -> String -> String -> Form
 renderStatic style placeholder "" = renderPlaceholder style placeholder
 renderStatic style _ str = text style str
 
-view :: TextStyle -> String -> Model -> Reactive (Model)
+view :: TextStyle -> String -> Model -> Reactive Input Model
 view style placeholder =
   Activatable.view
     toString

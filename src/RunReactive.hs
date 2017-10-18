@@ -1,4 +1,3 @@
-{-# LANGUAGE ExistentialQuantification, ScopedTypeVariables #-}
 module RunReactive where
 
 import qualified SDL
@@ -16,13 +15,13 @@ import qualified Reactive
 import Reactive (Reactive(..), atopReactives)
 import Utils (orElse)
 
-runReactive :: (model -> Reactive model) -> model -> IO ()
+runReactive :: (model -> Reactive Input model) -> model -> IO ()
 runReactive view initial = runSDL $
   withWindow "DeclarativeGraphics-SDL" SDL.defaultWindow $ \window ->
   withRenderer SDL.defaultRenderer window $ \renderer ->
   runReactiveInSDL view initial window renderer
 
-runReactiveInSDL :: (model -> Reactive model) -> model -> SDL.Window -> SDL.Renderer -> IO ()
+runReactiveInSDL :: (model -> Reactive Input model) -> model -> SDL.Window -> SDL.Renderer -> IO ()
 runReactiveInSDL view initial window renderer = loop (initial, view initial)
   where
     loop state = do
@@ -53,9 +52,9 @@ runReactiveInSDL view initial window renderer = loop (initial, view initial)
             Just input -> do
               newState <- step input state
               workUntil stopTime newState
-            Nothing    -> do
+            Nothing    -> 
               workUntil stopTime state
 
 
-optionalUpdate :: (m -> Reactive (Maybe m)) -> m -> Reactive m
+optionalUpdate :: (m -> Reactive Input (Maybe m)) -> m -> Reactive Input m
 optionalUpdate view model = fmap (`orElse` model) (view model)
