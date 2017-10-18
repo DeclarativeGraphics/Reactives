@@ -16,27 +16,28 @@ import Linear
 
 data ActiveOr active inactive
   = Active active
-  | InActive inactive
+  | Inactive inactive
+  deriving (Show, Eq, Read)
 
 view
   :: (act -> inact)
-  -> (inact -> act)
+  -> (V2 Double -> inact -> act)
   -> (act -> Reactive act)
   -> (inact -> Reactive inact)
   -> ActiveOr act inact
   -> Reactive (ActiveOr act inact)
-view makeInActive makeActive viewActive viewInActive activeOr =
+view makeInactive makeActive viewActive viewInactive activeOr =
   case activeOr of
     (Active active) ->
       let activeReactive = viewActive active
           maybeMakeInactive (MouseInput (MousePress pos MBLeft))
             | not (isInside activeReactive pos) =
-              InActive . makeInActive
+              Inactive . makeInactive
           maybeMakeInactive event = Active
        in Reactive.onEvent maybeMakeInactive activeReactive
-    (InActive inActive) ->
-      let inActiveReactive = viewInActive inActive
+    (Inactive inActive) ->
+      let inActiveReactive = viewInactive inActive
           maybeMakeActive (MouseInput (MousePress pos MBLeft))
-            | isInside inActiveReactive pos = Active . makeActive
-          maybeMakeActive event                  = InActive
+            | isInside inActiveReactive pos = Active . makeActive pos
+          maybeMakeActive event                  = Inactive
        in Reactive.onEvent maybeMakeActive inActiveReactive

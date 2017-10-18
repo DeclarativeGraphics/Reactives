@@ -17,9 +17,9 @@ import Utils (orElse, isInside, orTry, rightAngle)
 import Linear
 import FormUtils
 
-import qualified Widgets.Expression as Expression
-import Widgets.Expression (ExprModel(..), TypeModel(..))
+import qualified Widgets.TextField as TextField
+import qualified Widgets.Type as Type
 
 main :: IO ()
-main = runReactive (move (V2 100 100) . alignHV (0, 0) . Expression.view)
-  (ValueHole (TypeHole Nothing) Nothing)
+main =
+  runReactive (move (V2 200 200) . Type.view) Type.example

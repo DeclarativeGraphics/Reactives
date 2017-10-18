@@ -72,6 +72,9 @@ besidesTo dir combine reference toBeMoved =
   Reactive.atopReactives combine reference moved
   where moved = moveBesideBy (displacementTo dir) reference toBeMoved
 
+besidesAll :: V2 Double -> [Reactive a] -> Reactive [a]
+besidesAll dir = atopAllReactives . placedBesidesTo dir
+
 atopAllReactives :: [Reactive a] -> Reactive [a]
 atopAllReactives = foldr (atopReactives (:)) (constant [] empty)
 
@@ -89,7 +92,7 @@ modifyEventPositions :: M33 Double -> Reactive a -> Reactive a
 modifyEventPositions matrix reactive =
     reactive { react = react reactive . offsetEvent }
   where
-    transformPos (V2 x y) = toV2 $ matrix !* (V3 x y 1)
+    transformPos (V2 x y) = toV2 $ matrix !* V3 x y 1
     offsetEvent (MouseInput m) =
       MouseInput $ modify mouseInputPos transformPos m
     offsetEvent e = e
