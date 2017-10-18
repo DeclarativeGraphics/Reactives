@@ -8,7 +8,7 @@ import Graphics.Declarative.Cairo.Form
 import Graphics.Declarative.Cairo.Shape
 import Graphics.Declarative.SDL.Input
 
-import Data.Lens
+import Control.Lens
 import Utils (orElse, orTry, isInside, leftAngle, rightAngle)
 import Control.Monad (join, liftM2)
 
@@ -27,6 +27,9 @@ irreactive form = Reactive
   { react = const ()
   , visual = form
   }
+
+emptyR :: a -> Reactive e a
+emptyR value = constant value empty
 
 constant :: a -> Form -> Reactive e a
 constant value form = pure value <* irreactive form
@@ -50,7 +53,7 @@ wrapFilterOutsideEvents view model =
       | otherwise = model
 
 eventInside :: HasBorder a => a -> Input -> Bool
-eventInside sth (MouseInput m) = isInside sth (get mouseInputPos m)
+eventInside sth (MouseInput m) = isInside sth (view mouseInputPos m)
 eventInside sth _ = True
 
 atopReactives :: (a -> b -> c) -> Reactive e a -> Reactive e b -> Reactive e c
@@ -74,6 +77,21 @@ besidesTo dir combine reference toBeMoved =
 
 besidesAll :: Transformable e => V2 Double -> [Reactive e a] -> Reactive e [a]
 besidesAll dir = atopAllReactives . placedBesidesTo dir
+
+-- kinda like <*>, but with a flowing direction (V2 Double)
+attach :: Transformable e => V2 Double -> Reactive e (a -> b) -> Reactive e a -> Reactive e b
+attach dir = besidesTo dir ($)
+
+attachLeft, attachRight, attachUp, attachDown :: Transformable e => Reactive e (a -> b) -> Reactive e a -> Reactive e b
+attachLeft = attach left
+attachRight = attach right
+attachUp = attach up
+attachDown = attach down
+
+infixl 4 `attachLeft`
+infixl 4 `attachRight`
+infixl 4 `attachUp`
+infixl 4 `attachDown`
 
 atopAllReactives :: [Reactive e a] -> Reactive e [a]
 atopAllReactives = foldr (atopReactives (:)) (constant [] empty)

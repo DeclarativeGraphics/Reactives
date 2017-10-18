@@ -7,6 +7,8 @@ and then the name is only used once in a case expr, unlike in haskell,
 where you can already do a case on the left of a = of a func.
 In haskell there is now 2 ways of doing the same thing though, and I
 don't like that.
+[How can you specify parameter types and pattern match them at the
+same time?]
 
   There is no variable indexing by STRINGS anymore! Either it's
 de-brujin indices or its a global index (I'm all the way for
@@ -19,6 +21,9 @@ Oh and the list tails are shared! Oh man this is too awesome to not do it.
 On the flip side the problem with de-brujin indices is that the binding
 via the environment is strange to implement. Usually the top-level
 environment is not ordered, but for de-brujin indices it must be.
+[How do De-Brujin indices work with pattern matching?!?!??!
+\(x, y) -> ??? is x now index 1 and y index 0? what about unordered patterns?
+\{x, y} -> ???]
 
   Selecting an Expression should be possible. There should be options
 for wrapping the selected expression in a lambda, applying a function
@@ -44,7 +49,8 @@ and has type a -> a or any instantiation of that type. For example:
   Immutable code
 At least Immutable Types. If a function changes it's type it needs to
 be copied to a new function with another type. The idea is to disallow
-changes in types in libraries, so you can always use the newest library
+changes in types ['that would change the type']
+in libraries, so you can always use the newest library
 version (in dependencies) and it's garunteed to compile!
 But yes, on the flip side it means you have to copy EVERY function that
 uses your datatype once you change it.

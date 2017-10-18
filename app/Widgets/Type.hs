@@ -16,67 +16,102 @@ import Data.Monoid (First(..))
 import Utils
 import Linear
 import FormUtils
+import qualified Data.Map.Lazy as Map
 
 import qualified Widgets.TextField as TextField
 import qualified Widgets.Button as Button
+import qualified Widgets.DropDownList as DropDownList
+import qualified Widgets.Record as Record
+
+import qualified Backend
 
 data Model -- for types
-  = Record [Association] Button.Model
-  | Var TextField.Model
+  = RecordType (Record.Model Model)
+  | TypeReference String
+  | Hole (DropDownList.Model Model)
+  | Arrow Model Model
   deriving (Show, Eq)
-
-type Association = (TextField.Model, Model, Bool)
 
 monoStyle :: TextStyle
 monoStyle = defaultTextStyle { fontFamily = "monospace" }
 
+recordSettings :: Backend.TypeEnv -> Record.Settings Model
+recordSettings typeEnv = Record.Settings
+  { Record.textStyle = monoStyle
+  , Record.newInstance = hole
+  , Record.viewInner = view typeEnv
+  , Record.placeholderText = "field name"
+  , Record.emptyRecord = text monoStyle "Unit"
+  }
+
 example :: Model
 example
   = record
-  [ ( "key", var "value" )
+  [ ( "key", ref "value" )
   , ( "record"
     , record
-      [ ( "nested", var "records" )
-      , ( "mutliple", var "fields" )
-      , ( "all good are", var "3" )
+      [ ( "nested", ref "records" )
+      , ( "mutliple", ref "fields" )
+      , ( "all good are", ref "3" )
+      , ( "holes are this", hole )
       ]
     )
   ]
 
 record :: [(String, Model)] -> Model
-record = flip Record Button.construct . map makeModel
-  where makeModel (str, model) = ( TextField.inactive str, model, False)
+record = RecordType . Record.construct
 
-var :: String -> Model
-var = Var . TextField.inactive
+ref :: String -> Model
+ref = TypeReference
+
+hole :: Model
+hole = Hole DropDownList.construct
 
 
-view :: Model -> Reactive Input Model
-view (Var textField) = Var <$> TextField.view monoStyle "variable" textField
-view (Record associations buttonModel) =
-    Reactive.besidesTo down handleAddAssociation
-      (viewAssociations associations)
-      (alignHV (0, 0) (Button.view (text monoStyle "+") buttonModel))
+typeToModel :: Backend.Type -> Model
+typeToModel Backend.Nat = ref "Nat"
+typeToModel (Backend.RecordType r) =
+    record (Map.assocs (Map.map typeToModel r))
+
+
+calculateOptions :: Backend.TypeEnv -> [Model]
+calculateOptions typeEnv =
+  [ Arrow hole hole
+  ] ++ map typeToModel (Map.elems typeEnv)
+
+
+view :: Backend.TypeEnv -> Model -> Reactive Input Model
+view typeEnv (TypeReference name) = Reactive.constant (TypeReference name) (text monoStyle name)
+view typeEnv (RecordType record) = RecordType <$> Record.view (recordSettings typeEnv) record
+view typeEnv (Hole dropDownList) = viewHole typeEnv dropDownList
+view typeEnv (Arrow argumentType resultType) =
+    alignHV (0, 0)
+      (Arrow
+        <$> attachArrow (alignHV (0, 0.5) (view typeEnv argumentType))
+        `Reactive.attachRight` (alignHV (0, 0.5) (view typeEnv resultType)))
   where
-    placeholderAssoc = (TextField.emptyInactive, Var TextField.emptyActive, False)
-    handleAddAssociation :: [Association] -> (Button.Model, Button.Event) -> Model
-    handleAddAssociation associations (buttonModel, buttonClicked)
-      | buttonClicked = Record (associations ++ [placeholderAssoc]) buttonModel
-      | otherwise     = Record associations buttonModel
-
-viewAssociations :: [Association] -> Reactive Input [Association]
-viewAssociations associations =
-    Reactive.besidesAll down (map viewAssociation associations)
-
-viewAssociation :: Association -> Reactive Input Association
-viewAssociation (textField, typ, isInvalid) =
-    attachValidity <$> Reactive.besidesTo right (,) nameReactive (view typ)
-  where
-    attachValidity (x, y) = (x, y, isInvalid)
-    possiblyAddBorder =
-      if isInvalid then addBorder red else id
-    nameReactive =
+    attachArrow =
       Reactive.attachFormTo right
-        (text monoStyle ": ")
-        (Reactive.onVisual (possiblyAddBorder . padded 2)
-          (TextField.view monoStyle "field name" textField))
+        (alignHV (0, 0.5)
+          (text monoStyle { textColor = blue } " → "))
+
+
+
+holeDropDownListSettings :: Backend.TypeEnv -> DropDownList.Settings Model
+holeDropDownListSettings typeEnv = DropDownList.Settings
+  { DropDownList.textStyle = monoStyle
+  , DropDownList.buttonText = "Choose type..."
+  , DropDownList.dropDownText = "Choose type:"
+  , DropDownList.renderModel = Reactive.visual . view typeEnv
+  }
+
+viewHole :: Backend.TypeEnv -> DropDownList.Model Model -> Reactive Input Model
+viewHole typeEnv dropDownListModel =
+    handleEvents <$>
+      DropDownList.view
+        (holeDropDownListSettings typeEnv)
+        (calculateOptions typeEnv)
+        dropDownListModel
+  where
+    handleEvents (Left dropDownListModel) = Hole dropDownListModel
+    handleEvents (Right model) = model

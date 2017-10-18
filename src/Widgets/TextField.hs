@@ -132,3 +132,7 @@ moveCaretToPixel style pixelX textField
 getContent :: Model -> String
 getContent (Active text) = toString text
 getContent (Inactive str) = str
+
+isActive :: Model -> Bool
+isActive (Active _) = True
+isActive (Inactive _) = False
