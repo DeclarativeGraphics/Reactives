@@ -92,7 +92,7 @@ modifyEventPositions :: M33 Double -> Reactive a -> Reactive a
 modifyEventPositions matrix reactive =
     reactive { react = react reactive . offsetEvent }
   where
-    transformPos (V2 x y) = toV2 $ matrix !* (V3 x y 1)
+    transformPos (V2 x y) = toV2 $ matrix !* V3 x y 1
     offsetEvent (MouseInput m) =
       MouseInput $ modify mouseInputPos transformPos m
     offsetEvent e = e
