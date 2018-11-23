@@ -1,6 +1,6 @@
 module Widgets.Activatable where
 
-import Graphics.Declarative.Classes
+import Graphics.Declarative.Transforms
 import Graphics.Declarative.Bordered
 import qualified Graphics.Declarative.Border as Border
 import Graphics.Declarative.Cairo.TangoColors
@@ -8,6 +8,7 @@ import Graphics.Declarative.Cairo.Form
 import Graphics.Declarative.Cairo.Shape
 import Graphics.Declarative.SDL.Input
 
+import qualified Event
 import qualified Reactive
 import Reactive (Reactive(..))
 import qualified Event
@@ -27,17 +28,22 @@ view
   -> ActiveOr act inact
   -> Reactive Input (ActiveOr act inact)
 view makeInactive makeActive viewActive viewInactive activeOr =
-  case activeOr of
-    (Active active) ->
-      let activeReactive = viewActive active
-          maybeMakeInactive (MouseInput (MousePress pos MBLeft))
-            | not (isInside activeReactive pos) =
-              Inactive . makeInactive
-          maybeMakeInactive event = Active
-       in Reactive.onEvent maybeMakeInactive activeReactive
-    (Inactive inActive) ->
-      let inActiveReactive = viewInactive inActive
-          maybeMakeActive (MouseInput (MousePress pos MBLeft))
-            | isInside inActiveReactive pos = Active . makeActive pos
-          maybeMakeActive event                  = Inactive
-       in Reactive.onEvent maybeMakeActive inActiveReactive
+  let mousePressLeftGuard = Event.mouseInput . Event.mousePressGuard . Event.buttonGuard MBLeft
+  in
+    case activeOr of
+      Active active ->
+        let activeReactive = viewActive active
+            outsideReactiveEvent = mousePressLeftGuard . Event.outsideGuard activeReactive . Just
+        in 
+          Reactive.onEvent
+            (outsideReactiveEvent (Inactive (makeInactive active)))
+            (Active <$> activeReactive)
+      Inactive inactive ->
+        let inactiveReactive = Inactive <$> viewInactive inactive
+            insideReactiveEvent pos
+              | isInside inactiveReactive pos = Just (Active (makeActive pos inactive))
+              | otherwise = Nothing
+        in
+          Reactive.onEvent
+            (mousePressLeftGuard insideReactiveEvent)
+            inactiveReactive

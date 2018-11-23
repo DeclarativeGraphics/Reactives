@@ -3,76 +3,77 @@ module Event where
 import Graphics.Declarative.SDL.Input
 import Graphics.Declarative.Bordered
 import Control.Monad (liftM2)
+import Data.Monoid
 
 import Linear
 import Utils (isInside)
 
-mouseInput :: (MouseInput -> a -> a) -> (Input -> a -> a)
+mouseInput :: (MouseInput -> Maybe a) -> (Input -> Maybe a)
 mouseInput changeModel (MouseInput input) = changeModel input
-mouseInput _ _ = id
+mouseInput _ _ = Nothing
 
-mousePress :: (MB -> V2 Double -> a -> a) -> (Input -> a -> a)
+mousePress :: (MB -> V2 Double -> Maybe a) -> (Input -> Maybe a)
 mousePress = mouseInput . mousePressGuard
 
-mouseRelease :: (MB -> V2 Double -> a -> a) -> (Input -> a -> a)
+mouseRelease :: (MB -> V2 Double -> Maybe a) -> (Input -> Maybe a)
 mouseRelease = mouseInput . mouseReleaseGuard
 
-mouseMove :: (V2 Double -> a -> a) -> (Input -> a -> a)
+mouseMove :: (V2 Double -> Maybe a) -> (Input -> Maybe a)
 mouseMove = mouseInput . mouseMoveGuard
 
-keyInput :: (KeyInput -> a -> a) -> (Input -> a -> a)
+keyInput :: (KeyInput -> Maybe a) -> (Input -> Maybe a)
 keyInput changeModel (KeyInput input) = changeModel input
-keyInput _ _ = id
+keyInput _ _ = Nothing
 
-keyPress :: (Key -> a -> a) -> (Input -> a -> a)
+keyPress :: (Key -> Maybe a) -> (Input -> Maybe a)
 keyPress = keyInput . keyPressGuard
 
-textInput :: (String -> a -> a) -> (Input -> a -> a)
+textInput :: (String -> Maybe a) -> (Input -> Maybe a)
 textInput changeModel (TextInput text) = changeModel text
-textInput _ _ = id
+textInput _ _ = Nothing
 
 
 
-mousePressGuard :: (MB -> V2 Double -> a -> a) -> (MouseInput -> a -> a)
+mousePressGuard :: (MB -> V2 Double -> Maybe a) -> (MouseInput -> Maybe a)
 mousePressGuard changeModel (MousePress pos button) = changeModel button pos
-mousePressGuard _ _ = id
+mousePressGuard _ _ = Nothing
 
-mouseReleaseGuard :: (MB -> V2 Double -> a -> a) -> (MouseInput -> a -> a)
+mouseReleaseGuard :: (MB -> V2 Double -> Maybe a) -> (MouseInput -> Maybe a)
 mouseReleaseGuard changeModel (MouseRelease pos button) = changeModel button pos
-mouseReleaseGuard _ _ = id
+mouseReleaseGuard _ _ = Nothing
 
-buttonGuard :: MB -> (V2 Double -> a -> a) -> (MB -> V2 Double -> a -> a)
+buttonGuard :: MB -> (V2 Double -> Maybe a) -> (MB -> V2 Double -> Maybe a)
 buttonGuard shouldButton changeModel actualButton
   | shouldButton == actualButton = changeModel
-  | otherwise                    = const id
+  | otherwise                    = const Nothing
 
-insideGuard :: HasBorder b => b -> (a -> a) -> (V2 Double -> a -> a)
-insideGuard bordered changeModel pos model
-  | isInside bordered pos = changeModel model
-  | otherwise             = model
+insideGuard :: HasBorder b => b -> Maybe a -> V2 Double -> Maybe a
+insideGuard bordered maybeMsg pos
+  | isInside bordered pos = maybeMsg
+  | otherwise             = Nothing
 
-outsideGuard :: HasBorder b => b -> (a -> a) -> (V2 Double -> a -> a)
-outsideGuard bordered changeModel pos model
-  | isInside bordered pos = model
-  | otherwise             = changeModel model
+outsideGuard :: HasBorder b => b -> Maybe a -> V2 Double -> Maybe a
+outsideGuard bordered maybeMsg pos
+  | isInside bordered pos = Nothing
+  | otherwise             = maybeMsg
 
 
-mouseMoveGuard :: (V2 Double -> a -> a) -> (MouseInput -> a -> a)
+mouseMoveGuard :: (V2 Double -> Maybe a) -> (MouseInput -> Maybe a)
 mouseMoveGuard changeModel (MouseMove pos) = changeModel pos
-mouseMoveGuard _ _ = id
+mouseMoveGuard _ _ = Nothing
 
-keyPressGuard :: (Key -> a -> a) -> (KeyInput -> a -> a)
+keyPressGuard :: (Key -> Maybe a) -> (KeyInput -> Maybe a)
 keyPressGuard changeModel (KeyPress key) = changeModel key
-keyPressGuard _ _ = id
+keyPressGuard _ _ = Nothing
 
-keyGuard :: Key -> (a -> a) -> (Key -> a -> a)
+keyGuard :: Key -> (Maybe a) -> (Key -> Maybe a)
 keyGuard shouldKey changeModel actualKey
   | shouldKey == actualKey = changeModel
-  | otherwise              = id
+  | otherwise              = Nothing
 
 
 handleAfter :: (Input -> b -> c) -> (Input -> a -> b) -> (Input -> a -> c)
 handleAfter = liftM2 (.)
 
-handleChain :: [Input -> a -> a] -> (Input -> a -> a)
-handleChain = foldr handleAfter (const id)
+handleChain :: [Input -> Maybe a] -> (Input -> Maybe a)
+handleChain handlers input = getFirst (mconcat (map First (sequence handlers input)))

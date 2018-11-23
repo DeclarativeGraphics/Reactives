@@ -1,6 +1,6 @@
 module Widgets.TextField where
 
-import Graphics.Declarative.Classes
+import Graphics.Declarative.Transforms
 import Graphics.Declarative.Bordered
 import qualified Graphics.Declarative.Border as Border
 import Graphics.Declarative.Cairo.TangoColors
@@ -40,24 +40,21 @@ emptyInactive :: Model
 emptyInactive = Inactive ""
 
 
-caretLeft :: TextField -> TextField
-caretLeft (TextField (c:left) right) = TextField left (c:right)
-caretLeft tf = tf
+caretLeft :: TextField -> Maybe TextField
+caretLeft (TextField (c:left) right) = Just (TextField left (c:right))
+caretLeft _ = Nothing
 
-caretRight :: TextField -> TextField
-caretRight textField = maybeCaretRight textField `orElse` textField
+caretRight :: TextField -> Maybe TextField
+caretRight (TextField left (c:right)) = Just (TextField (c:left) right)
+caretRight _ = Nothing
 
-maybeCaretRight :: TextField -> Maybe TextField
-maybeCaretRight (TextField left (c:right)) = Just (TextField (c:left) right)
-maybeCaretRight _ = Nothing
+deleteLeft :: TextField -> Maybe TextField
+deleteLeft (TextField (c:left) right) = Just (TextField left right)
+deleteLeft _ = Nothing
 
-deleteLeft :: TextField -> TextField
-deleteLeft (TextField (c:left) right) = TextField left right
-deleteLeft tf = tf
-
-deleteRight :: TextField -> TextField
-deleteRight (TextField left (c:right)) = TextField left right
-deleteRight tf = tf
+deleteRight :: TextField -> Maybe TextField
+deleteRight (TextField left (c:right)) = Just (TextField left right)
+deleteRight _ = Nothing
 
 write :: String -> TextField -> TextField
 write str (TextField left right) = TextField (reverse str ++ left) right
@@ -66,19 +63,19 @@ toString :: TextField -> String
 toString (TextField left right) = reverse left ++ right
 
 viewTextField :: TextStyle -> String -> TextField -> Reactive Input TextField
-viewTextField textStyle placeholder =
-    Reactive.onEvent eventHandler
-  . Reactive.fromModel (render textStyle placeholder)
+viewTextField textStyle placeholder textField =
+    Reactive.onEvent eventHandler reactive
   where
+    reactive = Reactive.static (render textStyle placeholder textField)
     eventHandler =
       Event.handleChain
-        [ Event.mousePress (Event.buttonGuard MBLeft handleClick)
-        , Event.keyPress (Event.keyGuard KeyLeft caretLeft)
-        , Event.keyPress (Event.keyGuard KeyRight caretRight)
-        , Event.keyPress (Event.keyGuard KeyBackspace deleteLeft)
-        , Event.keyPress (Event.keyGuard KeyDelete deleteRight)
-        , Event.textInput write ]
-    handleClick pos textField = calcCaret textStyle pos (toString textField)
+        [ Event.mousePress (Event.buttonGuard MBLeft (\pos -> Event.insideGuard reactive (handleClick pos) pos))
+        , Event.keyPress (Event.keyGuard KeyLeft (caretLeft textField))
+        , Event.keyPress (Event.keyGuard KeyRight (caretRight textField))
+        , Event.keyPress (Event.keyGuard KeyBackspace (deleteLeft textField))
+        , Event.keyPress (Event.keyGuard KeyDelete (deleteRight textField))
+        , Event.textInput (\text -> Just (write text textField)) ]
+    handleClick pos = Just (calcCaret textStyle pos (toString textField))
 
 render :: TextStyle -> String -> TextField -> Form
 render textStyle placeholder tf@(TextField leftFromCaret rightFromCaret) =
@@ -87,9 +84,11 @@ render textStyle placeholder tf@(TextField leftFromCaret rightFromCaret) =
     textWithCaret =
       collapseBorder
         (appendTo right
-          [ Bordered (getBorder textUntilCaret) Graphics.Declarative.Classes.empty
-          , alignHV (0, 0) caret ])
-      `atop` renderText (toString tf)
+          [ Bordered (getBorder textUntilCaret) mempty
+          , alignHV (0, 0) caret
+          ]
+        )
+      <> renderText (toString tf)
 
     renderText "" = renderPlaceholder textStyle placeholder
     renderText str = text textStyle str
@@ -111,7 +110,7 @@ view style placeholder =
     toString
     (calcCaret style)
     (viewTextField style placeholder)
-    (Reactive.fromModel (renderStatic style placeholder))
+    (Reactive.static . renderStatic style placeholder)
 
 calcCaret :: TextStyle -> V2 Double -> String -> TextField
 calcCaret style (V2 x y) str = moveCaretToPixel style x (active "" str)
@@ -120,13 +119,14 @@ moveCaretToPixel :: TextStyle -> Double -> TextField -> TextField
 moveCaretToPixel style pixelX textField
   | pixelX <= acceptingPoint = textField
   | otherwise =
-    fmap (moveCaretToPixel style pixelX) (maybeCaretRight textField)
+    fmap (moveCaretToPixel style pixelX) (caretRight textField)
     `orElse`
     textField
   where
+    caretRightOrId tf = caretRight tf `orElse` tf
     acceptingPoint = (widthWithoutNext + widthWithNext) / 2
     widthWithoutNext = graphicWidth (text style (beforeCaret textField))
-    widthWithNext    = graphicWidth (text style (beforeCaret (caretRight textField)))
+    widthWithNext    = graphicWidth (text style (beforeCaret (caretRightOrId textField)))
 
 
 getContent :: Model -> String

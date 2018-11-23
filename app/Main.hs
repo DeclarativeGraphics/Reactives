@@ -1,6 +1,6 @@
 module Main where
 
-import Graphics.Declarative.Classes
+import Graphics.Declarative.Transforms
 import Graphics.Declarative.Bordered
 import qualified Graphics.Declarative.Border as Border
 import Graphics.Declarative.Cairo.TangoColors

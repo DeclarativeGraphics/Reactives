@@ -1,6 +1,6 @@
 module FormUtils where
 
-import Graphics.Declarative.Classes
+import Graphics.Declarative.Transforms
 import Graphics.Declarative.Bordered
 import qualified Graphics.Declarative.Border as Border
 import Graphics.Declarative.Cairo.TangoColors
@@ -12,21 +12,23 @@ import Reactive (Reactive(..))
 
 addBorder :: RGB -> Form -> Form
 addBorder color form =
-  outlined (solid color) (shapeFromForm form) `atop` form
+  outlined (solid color) (shapeFromForm form) <> form
 
 addBackground :: RGB -> Form -> Form
 addBackground color form =
-  form `atop` filled color (shapeFromForm form)
+  form <> filled color (shapeFromForm form)
 
 shapeFromForm :: Form -> Bordered Shape
 shapeFromForm form =
   rectangleFromBB (Border.getBoundingBox (getBorder form))
 
-separator :: Transformable e => (a -> b -> c) -> (Double -> Double -> Form) -> Reactive e a -> Reactive e b -> Reactive e c
-separator combine separatorFromDists reactiveA reactiveB =
-    Reactive.besidesTo down combine
-      (Reactive.attachFormTo down (separatorFromDists maxLeft maxRight) reactiveA)
-      reactiveB
+separator :: Transformable e => (Double -> Double -> Form) -> Reactive e a -> Reactive e a -> Reactive e a
+separator separatorFromDists reactiveA reactiveB =
+    appendTo down
+      [ reactiveA
+      , Reactive.static (separatorFromDists maxLeft maxRight)
+      , reactiveB
+      ]
   where
     bd dir reactive = Border.borderDistance (getBorder reactive) dir
     maxLeft = max (bd left reactiveA) (bd left reactiveB)
@@ -34,6 +36,8 @@ separator combine separatorFromDists reactiveA reactiveB =
 
 withParens :: Transformable e => TextStyle -> Reactive e a -> Reactive e a
 withParens style reactive =
-  Reactive.attachFormTo left (text style "(") $
-  Reactive.attachFormTo right (text style ")")
-  reactive
+  appendTo right
+    [ Reactive.static (text style "(")
+    , reactive
+    , Reactive.static (text style ")")
+    ]

@@ -1,6 +1,6 @@
 module Widgets.Record where
 
-import Graphics.Declarative.Classes
+import Graphics.Declarative.Transforms
 import Graphics.Declarative.Bordered
 import qualified Graphics.Declarative.Border as Border
 import Graphics.Declarative.Cairo.TangoColors
@@ -17,6 +17,7 @@ import Utils
 import Linear
 import FormUtils
 import qualified Data.Map.Lazy as Map
+import Control.Lens
 
 import qualified Widgets.TextField as TextField
 import qualified Widgets.Button as Button
@@ -33,6 +34,10 @@ data Association a
   , associationRemoveButton :: Button.Model
   , associationErrors :: [Error]
   } deriving (Show, Eq)
+
+data AssociationEvent
+  = AddAssociation
+  | RemoveAssociation
 
 type Error = String
 
@@ -61,9 +66,7 @@ activeAssociation inner =
 construct :: [(String, a)] -> Model a
 construct = Record Button.construct . map makeModel
   where
-    makeModel (str, model) = (activeAssociation model) { associationTextField = (TextField.inactive str) }
-
-
+    makeModel (str, model) = (activeAssociation model) { associationTextField = TextField.inactive str }
 
 view :: Settings a -> Model a -> Reactive Input (Model a)
 view settings (Record emptyButton []) =
@@ -79,59 +82,68 @@ view settings (Record button associations) =
 
 viewAssociations :: Settings a -> [Association a] -> Reactive Input [Association a]
 viewAssociations settings associations =
-    concat <$> Reactive.besidesAll down (map (viewAssociation settings) associations)
+    appendTo down
+      (Reactive.viewList
+        (Reactive.processEvent (Just . handleAssociationEvents) . viewAssociation settings)
+        associations)
+  where
+    handleAssociationEvents (association, event) =
+      case event of
+        Nothing -> [association]
+        Just AddAssociation -> [association, activeAssociation (newInstance settings)]
+        Just RemoveAssociation -> []
 
-viewAssociation :: Settings a -> Association a -> Reactive Input [Association a]
-viewAssociation settings (Association textField innerValue buttonAdd buttonRemove errors) =
-      (makeAssociation <$> alignHV (0, 0.5) nameReactive)
-      `attachRight` (alignHV (0, 0.5) (viewInner settings innerValue))
-      `attachRight` (alignHV (0, 0.5) buttonAddReactive)
-      `attachRight` (alignHV (0, 0.5) buttonRemoveReactive)
-      `attachDown` (viewErrors settings isAssociationActive errors)
+viewAssociation :: Settings a -> Association a -> Reactive Input (Association a, Maybe AssociationEvent)
+viewAssociation settings association@(Association textField innerValue buttonAdd buttonRemove errors) =
+  appendTo down
+    [ appendTo right $ map (alignHV (0, 0.5)) [ nameReactive, innerReactive, buttons ]
+    , Reactive.static (viewErrors settings isAssociationActive errors)
+    ]
   where
     isAssociationActive =
       or [TextField.isActive textField, Button.isActive buttonAdd, Button.isActive buttonRemove]
 
-    makeAssociation textField innerValue (buttonAdd, buttonAddClicked) (buttonRemove, buttonRemoveClicked) errors
-      | buttonRemoveClicked = []
-      | buttonAddClicked = [assoc, activeAssociation (newInstance settings)]
-      | otherwise = [assoc]
-      where assoc = Association textField innerValue buttonAdd buttonRemove errors
+    innerReactive =
+      fmap (\value -> (association { associationValue = value }, Nothing))
+        (viewInner settings innerValue)
 
     actionButton name buttonModel =
       alignHV (0, 0)
-        (Reactive.attachFormTo left
-          (gap 4 0)
-          (Button.view (text (textStyle settings) name) buttonModel))
+        (appendTo right
+          [ Button.view (text (textStyle settings) name) buttonModel
+          , Reactive.static (gap 4 0)
+          ]
+        )
+    
+    buttons =
+      if isAssociationActive then appendTo right [ buttonAddReactive, buttonRemoveReactive ] else mempty
 
     buttonAddReactive =
-      if isAssociationActive
-        then actionButton " + " buttonAdd
-        else Reactive.emptyR (buttonAdd, False)
+      Reactive.processEvent
+        (\(model, clicked) -> Just (association { associationAddButton = model }, if clicked then Just AddAssociation else Nothing))
+        (actionButton " + " buttonAdd)
 
     buttonRemoveReactive =
-      if isAssociationActive
-        then actionButton " X " buttonRemove
-        else Reactive.emptyR (buttonRemove, False)
-
-    attachRight = Reactive.attach right
-    attachDown = Reactive.attach down
+      Reactive.processEvent
+        (\(model, clicked) -> Just (association { associationRemoveButton = model }, if clicked then Just RemoveAssociation else Nothing))
+        (actionButton " X " buttonRemove)
 
     possiblyAddBorder =
       if not (null errors) then addBorder red else id
 
     nameReactive =
-      Reactive.attachFormTo right
-        (text (textStyle settings) ": ")
-        (Reactive.onVisual (possiblyAddBorder . padded 2)
-          (TextField.view (textStyle settings) (placeholderText settings) textField))
+      appendTo right
+        [ Reactive.static (text (textStyle settings) ": ")
+        , Reactive.onVisual (possiblyAddBorder . padded 2)
+            (Reactive.processEvent (\textField -> Just (association { associationTextField = textField}, Nothing))
+              (TextField.view (textStyle settings) (placeholderText settings) textField))
+        ]
 
-viewErrors :: Settings a -> Bool -> [Error] -> Reactive Input [Error]
-viewErrors settings _ [] = Reactive.emptyR []
-viewErrors settings False errors = Reactive.emptyR errors
+viewErrors :: Settings a -> Bool -> [Error] -> Form
+viewErrors settings _ [] = mempty
+viewErrors settings False errors = mempty
 viewErrors settings True errors =
-  Reactive.constant errors
-    (appendTo down (map (padded 3 . addBackground red . padded 1 . text style) errors))
+   appendTo down (map (padded 3 . addBackground red . padded 1 . text style) errors)
   where
     style = (textStyle settings) { textColor = lightGrey, fontSize = 10 }
 
