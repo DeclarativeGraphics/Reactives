@@ -2,16 +2,10 @@ module RunReactive where
 
 import qualified SDL
 
-import Graphics.Declarative.Transforms
-import Graphics.Declarative.Bordered
-import qualified Graphics.Declarative.Border as Border
-import Graphics.Declarative.Cairo.TangoColors
 import Graphics.Declarative.Cairo.Form
-import Graphics.Declarative.Cairo.Shape
 import Graphics.Declarative.SDL.Input
 import Graphics.Declarative.SDL.Glue
 
-import qualified Reactive
 import Reactive (Reactive(..))
 import Utils (orElse)
 import Data.Maybe
