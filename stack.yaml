@@ -1,8 +1,8 @@
 flags: {}
 packages:
 - .
+extra-deps:
 - ../DeclarativeGraphics
 - ../DeclarativeGraphics-Cairo
 - ../DeclarativeGraphics-SDL
-extra-deps: []
 resolver: lts-12.19
